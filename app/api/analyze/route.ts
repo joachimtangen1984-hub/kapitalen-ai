@@ -36,7 +36,7 @@ function mapStockSymbol(input: string) {
 
   if (text.includes("apple") || text.includes("aapl")) return "AAPL";
   if (text.includes("tesla") || text.includes("tsla")) return "TSLA";
-  if (text.includes("equinor") || text.includes("eqnr")) return "EQNR.OL";
+  if (text.includes("equinor") || text.includes("eqnr")) return "EQNR";
   if (text.includes("dnb")) return "DNB.OL";
   if (text.includes("nvidia") || text.includes("nvda")) return "NVDA";
   if (text.includes("microsoft") || text.includes("msft")) return "MSFT";
