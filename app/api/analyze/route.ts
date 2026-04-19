@@ -37,7 +37,7 @@ function mapStockSymbol(input: string) {
   if (text.includes("apple") || text.includes("aapl")) return "AAPL";
   if (text.includes("tesla") || text.includes("tsla")) return "TSLA";
   if (text.includes("equinor") || text.includes("eqnr")) return "EQNR";
-  if (text.includes("dnb")) return "DNB.OL";
+  if (text.includes("dnb")) return "DNB";
   if (text.includes("nvidia") || text.includes("nvda")) return "NVDA";
   if (text.includes("microsoft") || text.includes("msft")) return "MSFT";
 
@@ -46,12 +46,17 @@ function mapStockSymbol(input: string) {
 
 async function getStockQuote(symbol: string) {
   const key = process.env.FINNHUB_API_KEY;
-  if (!key) throw new Error("Missing FINNHUB_API_KEY");
+
+  if (!key) {
+    throw new Error("Missing FINNHUB_API_KEY");
+  }
 
   const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${key}`;
   const res = await fetch(url, { cache: "no-store" });
 
-  if (!res.ok) throw new Error("Finnhub stock quote failed");
+  if (!res.ok) {
+    throw new Error("Finnhub stock quote failed");
+  }
 
   return res.json();
 }
@@ -63,7 +68,9 @@ async function getCryptoPrice(id: string) {
 
   const res = await fetch(url, { cache: "no-store" });
 
-  if (!res.ok) throw new Error("CoinGecko crypto price failed");
+  if (!res.ok) {
+    throw new Error("CoinGecko crypto price failed");
+  }
 
   return res.json();
 }
@@ -126,7 +133,7 @@ Pris i NOK: ${coin?.nok}
         {
           role: "system",
           content:
-            "Du er en finansanalytiker. Svar kort, konkret og på norsk. Bruk live markedsdataene du får. Gi alltid: 1) trend, 2) risiko, 3) kort konklusjon, 4) om dette ser best ut for kortsiktig eller langsiktig vurdering.",
+            "Du er en finansanalytiker. Svar kort, konkret og på norsk. Bruk live markedsdataene du får. Formater alltid svaret slik: 1) Trend: ..., 2) Risiko: ..., 3) Kort konklusjon: ..., 4) Anbefaling: Kjøp/Hold/Selg, 5) Score: x/10, 6) Tidsvurdering: Kortsiktig/Langsiktig. Vær tydelig, bestemt og enkel å forstå.",
         },
         {
           role: "user",
