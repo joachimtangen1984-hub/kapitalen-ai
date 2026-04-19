@@ -57,19 +57,11 @@ async function getStockQuote(symbol: string) {
 }
 
 async function getCryptoPrice(id: string) {
-  const key = process.env.COINGECKO_API_KEY;
-  const headers: HeadersInit = key
-    ? { "x-cg-pro-api-key": key }
-    : {};
-
-  const url = `https://pro-api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
+  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(
     id
   )}&vs_currencies=nok&include_24hr_change=true`;
 
-  const res = await fetch(url, {
-    headers,
-    cache: "no-store",
-  });
+  const res = await fetch(url, { cache: "no-store" });
 
   if (!res.ok) throw new Error("CoinGecko crypto price failed");
 
@@ -85,7 +77,6 @@ export async function POST(req: Request) {
     }
 
     const assetType = detectAssetType(message);
-
     let marketContext = "";
 
     if (assetType === "stock") {
@@ -94,7 +85,7 @@ export async function POST(req: Request) {
       if (!symbol) {
         return Response.json({
           result:
-            "Jeg fant ikke aksjen automatisk. Prøv f.eks. Apple, Tesla, Equinor eller DNB.",
+            "Jeg fant ikke aksjen automatisk. Prøv for eksempel Apple, Tesla, Equinor, DNB, Nvidia eller Microsoft.",
         });
       }
 
@@ -115,7 +106,7 @@ Forrige close: ${quote.pc}
       if (!coinId) {
         return Response.json({
           result:
-            "Jeg fant ikke kryptovalutaen automatisk. Prøv f.eks. Bitcoin, Ethereum eller Solana.",
+            "Jeg fant ikke kryptovalutaen automatisk. Prøv for eksempel Bitcoin, Ethereum eller Solana.",
         });
       }
 
@@ -135,7 +126,7 @@ Pris i NOK: ${coin?.nok}
         {
           role: "system",
           content:
-            "Du er en finansanalytiker. Bruk markedsdataene du får. Svar kort, konkret og på norsk. Ta med trend, risiko og en enkel konklusjon.",
+            "Du er en finansanalytiker. Svar kort, konkret og på norsk. Bruk live markedsdataene du får. Gi alltid: 1) trend, 2) risiko, 3) kort konklusjon, 4) om dette ser best ut for kortsiktig eller langsiktig vurdering.",
         },
         {
           role: "user",
