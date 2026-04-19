@@ -24,13 +24,22 @@ export default function HomePage() {
         }),
       });
 
+      if (!res.ok) {
+        throw new Error("API request failed");
+      }
+
       const data = await res.json();
       setResult(data.result || "Ingen analyse mottatt.");
     } catch (error) {
+      console.error(error);
       setResult("Noe gikk galt. Prøv igjen.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const fillExample = (text: string) => {
+    setInput(text);
   };
 
   return (
@@ -50,10 +59,18 @@ export default function HomePage() {
           </div>
 
           <div className="hidden gap-3 md:flex">
-            <span className="rounded-full bg-white px-4 py-2 text-sm">Aksjer</span>
-            <span className="rounded-full bg-white px-4 py-2 text-sm">Krypto</span>
-            <span className="rounded-full bg-white px-4 py-2 text-sm">AI-drevet</span>
-            <span className="rounded-full bg-white px-4 py-2 text-sm">Norsk</span>
+            <span className="rounded-full bg-white px-4 py-2 text-sm shadow-sm">
+              Aksjer
+            </span>
+            <span className="rounded-full bg-white px-4 py-2 text-sm shadow-sm">
+              Krypto
+            </span>
+            <span className="rounded-full bg-white px-4 py-2 text-sm shadow-sm">
+              AI-drevet
+            </span>
+            <span className="rounded-full bg-white px-4 py-2 text-sm shadow-sm">
+              Norsk
+            </span>
           </div>
         </div>
       </header>
@@ -62,7 +79,7 @@ export default function HomePage() {
         <div className="grid gap-6 lg:grid-cols-[240px_1fr_280px]">
           <aside className="rounded-[28px] bg-white p-5 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0f172a] text-[#f6c56f] font-bold">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0f172a] font-bold text-[#f6c56f]">
                 K
               </div>
               <div>
@@ -107,12 +124,18 @@ export default function HomePage() {
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleAnalyze();
+                    }
+                  }}
                   className="flex-1 bg-transparent px-4 outline-none"
-                  placeholder="Søk etter aksje eller krypto, f.eks. Equinor, AAPL, Bitcoin..."
+                  placeholder="Søk etter aksje eller krypto, f.eks. Apple, Equinor, Bitcoin..."
                 />
                 <button
                   onClick={handleAnalyze}
-                  className="rounded-full bg-[#0f172a] px-6 py-3 text-white"
+                  disabled={loading}
+                  className="rounded-full bg-[#0f172a] px-6 py-3 text-white disabled:opacity-60"
                 >
                   {loading ? "Analyserer..." : "Analyser"}
                 </button>
@@ -120,17 +143,41 @@ export default function HomePage() {
 
               <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-black/50">
                 <span>Populært:</span>
-                <span className="rounded-full bg-[#f3f4f6] px-4 py-2">Equinor</span>
-                <span className="rounded-full bg-[#f3f4f6] px-4 py-2">Apple (AAPL)</span>
-                <span className="rounded-full bg-[#f3f4f6] px-4 py-2">Bitcoin (BTC)</span>
-                <span className="rounded-full bg-[#f3f4f6] px-4 py-2">Ethereum (ETH)</span>
+
+                <button
+                  onClick={() => fillExample("analyser equinor aksjen")}
+                  className="rounded-full bg-[#f3f4f6] px-4 py-2 transition hover:bg-[#e9ebef]"
+                >
+                  Equinor
+                </button>
+
+                <button
+                  onClick={() => fillExample("analyser apple aksjen")}
+                  className="rounded-full bg-[#f3f4f6] px-4 py-2 transition hover:bg-[#e9ebef]"
+                >
+                  Apple (AAPL)
+                </button>
+
+                <button
+                  onClick={() => fillExample("analyser bitcoin")}
+                  className="rounded-full bg-[#f3f4f6] px-4 py-2 transition hover:bg-[#e9ebef]"
+                >
+                  Bitcoin (BTC)
+                </button>
+
+                <button
+                  onClick={() => fillExample("analyser ethereum")}
+                  className="rounded-full bg-[#f3f4f6] px-4 py-2 transition hover:bg-[#e9ebef]"
+                >
+                  Ethereum (ETH)
+                </button>
               </div>
             </div>
 
             {result && (
               <div className="rounded-[28px] bg-white p-6 shadow-sm">
                 <h2 className="mb-4 text-2xl font-semibold">AI-analyse</h2>
-                <div className="whitespace-pre-wrap text-[16px] leading-7 text-black/80">
+                <div className="whitespace-pre-wrap text-[18px] leading-9 text-black/85">
                   {result}
                 </div>
               </div>
@@ -143,9 +190,12 @@ export default function HomePage() {
                 <div className="font-semibold text-green-600">+1,8%</div>
                 <div className="mt-4 h-28 rounded-xl bg-gray-100" />
                 <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">Sterk kontantstrøm</span>
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">Lav risiko</span>
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">Defensiv</span>
+                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
+                    Sterk kontantstrøm
+                  </span>
+                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
+                    Lav risiko
+                  </span>
                 </div>
               </div>
 
@@ -155,9 +205,12 @@ export default function HomePage() {
                 <div className="font-semibold text-green-600">+2,4%</div>
                 <div className="mt-4 h-28 rounded-xl bg-gray-100" />
                 <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">Sterk trend</span>
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">Økende adopsjon</span>
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">Høy volatilitet</span>
+                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
+                    Sterk trend
+                  </span>
+                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
+                    Økende adopsjon
+                  </span>
                 </div>
               </div>
             </div>
@@ -167,16 +220,23 @@ export default function HomePage() {
             <div className="rounded-[28px] bg-white p-5 shadow-sm">
               <div className="font-semibold">Siste analyser</div>
               <div className="mt-3 space-y-3 text-sm">
-                <div className="rounded-2xl bg-[#f7f7f7] px-4 py-3">Apple (AAPL)</div>
-                <div className="rounded-2xl bg-[#f7f7f7] px-4 py-3">Bitcoin (BTC)</div>
-                <div className="rounded-2xl bg-[#f7f7f7] px-4 py-3">DNB (DNB.OL)</div>
+                <div className="rounded-2xl bg-[#f7f7f7] px-4 py-3">
+                  Apple (AAPL)
+                </div>
+                <div className="rounded-2xl bg-[#f7f7f7] px-4 py-3">
+                  Bitcoin (BTC)
+                </div>
+                <div className="rounded-2xl bg-[#f7f7f7] px-4 py-3">
+                  DNB (DNB.OL)
+                </div>
               </div>
             </div>
 
             <div className="rounded-[28px] bg-[#f7f2e8] p-5 shadow-sm">
               <div className="font-semibold">Prøv portefølje</div>
               <p className="mt-2 text-sm text-black/60">
-                Få innsikt i porteføljen din med AI, risikooversikt og enklere beslutningsstøtte.
+                Få innsikt i porteføljen din med AI, risikooversikt og enklere
+                beslutningsstøtte.
               </p>
             </div>
 
