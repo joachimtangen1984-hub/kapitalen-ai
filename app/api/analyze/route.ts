@@ -17,7 +17,8 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: "Du er en finansanalytiker som gir korte, klare analyser av aksjer og krypto.",
+          content:
+            "Du er en finansanalytiker. Gi korte, konkrete analyser av aksjer og krypto.",
         },
         {
           role: "user",
@@ -29,7 +30,6 @@ export async function POST(req: Request) {
     const text = response.choices[0].message.content;
 
     return Response.json({ result: text });
-
   } catch (error) {
     console.error(error);
     return new Response("Error", { status: 500 });
