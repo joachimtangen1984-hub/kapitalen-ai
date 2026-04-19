@@ -1,17 +1,134 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+type ParsedAnalysis = {
+  trend: string;
+  risiko: string;
+  konklusjon: string;
+  anbefaling: string;
+  score: string;
+  tidsvurdering: string;
+};
+
+type HistoryItem = {
+  id: string;
+  query: string;
+  createdAt: string;
+};
+
+function extractField(result: string, labels: string[]) {
+  for (const label of labels) {
+    const regex = new RegExp(`${label}\\s*:?\\s*(.*)`, "i");
+    const match = result.match(regex);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+  return "";
+}
+
+function parseAnalysis(result: string): ParsedAnalysis {
+  const trend = extractField(result, ["1\\)\\s*Trend", "Trend"]);
+  const risiko = extractField(result, ["2\\)\\s*Risiko", "Risiko"]);
+  const konklusjon = extractField(result, [
+    "3\\)\\s*Kort konklusjon",
+    "Kort konklusjon",
+    "Konklusjon",
+  ]);
+  const anbefaling = extractField(result, [
+    "4\\)\\s*Anbefaling",
+    "Anbefaling",
+    "Vurdering",
+  ]);
+  const score = extractField(result, ["5\\)\\s*Score", "Score"]);
+  const tidsvurdering = extractField(result, [
+    "6\\)\\s*Tidsvurdering",
+    "Tidsvurdering",
+  ]);
+
+  return {
+    trend,
+    risiko,
+    konklusjon,
+    anbefaling,
+    score,
+    tidsvurdering,
+  };
+}
+
+function getRecommendationStyle(recommendation: string) {
+  const value = recommendation.toLowerCase();
+
+  if (value.includes("kjøp")) {
+    return "bg-green-100 text-green-700 border-green-200";
+  }
+
+  if (value.includes("hold")) {
+    return "bg-yellow-100 text-yellow-700 border-yellow-200";
+  }
+
+  if (value.includes("selg")) {
+    return "bg-red-100 text-red-700 border-red-200";
+  }
+
+  return "bg-gray-100 text-gray-700 border-gray-200";
+}
+
+function formatHistoryLabel(query: string) {
+  return query.length > 28 ? `${query.slice(0, 28)}...` : query;
+}
 
 export default function HomePage() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
-  const handleAnalyze = async () => {
-    if (!input.trim()) return;
+  const parsed = useMemo(() => parseAnalysis(result), [result]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("kapitalen-history");
+
+    if (saved) {
+      try {
+        const parsedHistory = JSON.parse(saved) as HistoryItem[];
+        setHistory(parsedHistory);
+      } catch (error) {
+        console.error("Kunne ikke lese historikk", error);
+      }
+    }
+  }, []);
+
+  const saveToHistory = (query: string) => {
+    const newItem: HistoryItem = {
+      id: crypto.randomUUID(),
+      query,
+      createdAt: new Date().toISOString(),
+    };
+
+    setHistory((prev) => {
+      const filtered = prev.filter(
+        (item) => item.query.toLowerCase() !== query.toLowerCase()
+      );
+      const updated = [newItem, ...filtered].slice(0, 8);
+
+      localStorage.setItem("kapitalen-history", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleAnalyze = async (forcedQuery?: string) => {
+    const query = forcedQuery ?? input;
+
+    if (!query.trim()) return;
 
     setLoading(true);
     setResult("");
+
+    if (forcedQuery) {
+      setInput(forcedQuery);
+    }
 
     try {
       const res = await fetch("/api/analyze", {
@@ -20,7 +137,7 @@ export default function HomePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: input,
+          message: query,
         }),
       });
 
@@ -29,7 +146,10 @@ export default function HomePage() {
       }
 
       const data = await res.json();
-      setResult(data.result || "Ingen analyse mottatt.");
+      const output = data.result || "Ingen analyse mottatt.";
+
+      setResult(output);
+      saveToHistory(query);
     } catch (error) {
       console.error(error);
       setResult("Noe gikk galt. Prøv igjen.");
@@ -41,6 +161,19 @@ export default function HomePage() {
   const fillExample = (text: string) => {
     setInput(text);
   };
+
+  const clearHistory = () => {
+    localStorage.removeItem("kapitalen-history");
+    setHistory([]);
+  };
+
+  const hasStructuredResult =
+    parsed.trend ||
+    parsed.risiko ||
+    parsed.konklusjon ||
+    parsed.anbefaling ||
+    parsed.score ||
+    parsed.tidsvurdering;
 
   return (
     <main className="min-h-screen bg-[#f6f4f1] text-[#111]">
@@ -133,7 +266,7 @@ export default function HomePage() {
                   placeholder="Søk etter aksje eller krypto, f.eks. Apple, Equinor, Bitcoin..."
                 />
                 <button
-                  onClick={handleAnalyze}
+                  onClick={() => handleAnalyze()}
                   disabled={loading}
                   className="rounded-full bg-[#0f172a] px-6 py-3 text-white disabled:opacity-60"
                 >
@@ -176,10 +309,71 @@ export default function HomePage() {
 
             {result && (
               <div className="rounded-[28px] bg-white p-6 shadow-sm">
-                <h2 className="mb-4 text-2xl font-semibold">AI-analyse</h2>
-                <div className="whitespace-pre-wrap text-[18px] leading-9 text-black/85">
-                  {result}
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <h2 className="text-2xl font-semibold">AI-analyse</h2>
+
+                  <div className="flex flex-wrap gap-2">
+                    {parsed.anbefaling && (
+                      <span
+                        className={`rounded-full border px-4 py-2 text-sm font-semibold ${getRecommendationStyle(
+                          parsed.anbefaling
+                        )}`}
+                      >
+                        {parsed.anbefaling}
+                      </span>
+                    )}
+
+                    {parsed.score && (
+                      <span className="rounded-full border border-blue-200 bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700">
+                        Score: {parsed.score}
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {hasStructuredResult ? (
+                  <div className="space-y-4 text-[17px] leading-8 text-black/85">
+                    {parsed.trend && (
+                      <div>
+                        <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
+                          Trend
+                        </div>
+                        <div>{parsed.trend}</div>
+                      </div>
+                    )}
+
+                    {parsed.risiko && (
+                      <div>
+                        <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
+                          Risiko
+                        </div>
+                        <div>{parsed.risiko}</div>
+                      </div>
+                    )}
+
+                    {parsed.konklusjon && (
+                      <div>
+                        <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
+                          Kort konklusjon
+                        </div>
+                        <div>{parsed.konklusjon}</div>
+                      </div>
+                    )}
+
+                    {parsed.tidsvurdering && (
+                      <div>
+                        <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
+                          Tidsvurdering
+                        </div>
+                        <div>{parsed.tidsvurdering}</div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap text-[18px] leading-9 text-black/85">
+                    {result}
+                  </div>
+                )}
               </div>
             )}
 
@@ -218,18 +412,36 @@ export default function HomePage() {
 
           <aside className="space-y-6">
             <div className="rounded-[28px] bg-white p-5 shadow-sm">
-              <div className="font-semibold">Siste analyser</div>
-              <div className="mt-3 space-y-3 text-sm">
-                <div className="rounded-2xl bg-[#f7f7f7] px-4 py-3">
-                  Apple (AAPL)
-                </div>
-                <div className="rounded-2xl bg-[#f7f7f7] px-4 py-3">
-                  Bitcoin (BTC)
-                </div>
-                <div className="rounded-2xl bg-[#f7f7f7] px-4 py-3">
-                  DNB (DNB.OL)
-                </div>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="font-semibold">Siste analyser</div>
+
+                {history.length > 0 && (
+                  <button
+                    onClick={clearHistory}
+                    className="text-xs text-black/45 transition hover:text-black"
+                  >
+                    Tøm
+                  </button>
+                )}
               </div>
+
+              {history.length > 0 ? (
+                <div className="space-y-3 text-sm">
+                  {history.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleAnalyze(item.query)}
+                      className="w-full rounded-2xl bg-[#f7f7f7] px-4 py-3 text-left transition hover:bg-[#ececec]"
+                    >
+                      {formatHistoryLabel(item.query)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-black/45">
+                  Ingen analyser enda.
+                </div>
+              )}
             </div>
 
             <div className="rounded-[28px] bg-[#f7f2e8] p-5 shadow-sm">
