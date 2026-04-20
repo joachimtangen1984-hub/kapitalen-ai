@@ -84,6 +84,8 @@ export default function HomePage() {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [limitMessage, setLimitMessage] = useState("");
+  const [remaining, setRemaining] = useState<number | null>(null);
 
   const parsed = useMemo(() => parseAnalysis(result), [result]);
 
@@ -125,6 +127,7 @@ export default function HomePage() {
 
     setLoading(true);
     setResult("");
+    setLimitMessage("");
 
     if (forcedQuery) {
       setInput(forcedQuery);
@@ -141,11 +144,24 @@ export default function HomePage() {
         }),
       });
 
+      const data = await res.json();
+
+      if (typeof data.remaining === "number") {
+        setRemaining(data.remaining);
+      }
+
+      if (res.status === 429) {
+        setLimitMessage(
+          data.result ||
+            "Du har brukt opp gratisgrensen i dag. Oppgrader for ubegrenset tilgang."
+        );
+        return;
+      }
+
       if (!res.ok) {
         throw new Error("API request failed");
       }
 
-      const data = await res.json();
       const output = data.result || "Ingen analyse mottatt.";
 
       setResult(output);
@@ -241,6 +257,18 @@ export default function HomePage() {
               <p className="mt-1 text-sm text-black/60">
                 Ubegrensede analyser og porteføljeinnsikt.
               </p>
+
+              <div className="mt-3 rounded-2xl bg-white/70 px-3 py-2 text-sm text-black/70">
+                {remaining !== null ? (
+                  <>
+                    Gratis igjen i dag:{" "}
+                    <span className="font-semibold">{remaining}</span>
+                  </>
+                ) : (
+                  <>Ubegrensede muligheter med Premium</>
+                )}
+              </div>
+
               <button className="mt-4 w-full rounded-2xl bg-[#0f172a] py-3 text-white">
                 Oppgrader
               </button>
@@ -252,6 +280,10 @@ export default function HomePage() {
               <h1 className="text-center text-4xl font-semibold">
                 Hva vil du analysere i dag?
               </h1>
+
+              <div className="mt-4 text-center text-sm text-black/50">
+                Gratisbrukere kan kjøre 3 analyser per dag.
+              </div>
 
               <div className="mt-6 flex items-center gap-3 rounded-full bg-[#f3f4f6] p-2">
                 <input
@@ -306,6 +338,15 @@ export default function HomePage() {
                 </button>
               </div>
             </div>
+
+            {limitMessage && (
+              <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 shadow-sm">
+                <div className="text-lg font-semibold text-amber-800">
+                  Gratisgrensen er nådd
+                </div>
+                <p className="mt-2 text-amber-700">{limitMessage}</p>
+              </div>
+            )}
 
             {result && (
               <div className="rounded-[28px] bg-white p-6 shadow-sm">
