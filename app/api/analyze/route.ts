@@ -11,150 +11,129 @@ type ResolvedSymbol = {
   type: AssetType;
 };
 
-type QuoteData = {
-  c?: number; // current
-  d?: number; // change
-  dp?: number; // change %
-  h?: number; // high
-  l?: number; // low
-  o?: number; // open
-  pc?: number; // prev close
-  t?: number; // timestamp
-};
-
-type AnalysisPayload = {
-  recommendation: string;
-  score: number;
-  analysis: {
-    trend: string;
-    risk: string;
-    conclusion: string;
-    timeframe: string;
-  };
-};
-
 const MANUAL_SYMBOLS: Record<string, ResolvedSymbol> = {
   // Oslo Børs
-  equinor: { symbol: "EQNR.OL", name: "Equinor ASA", type: "stock" },
+  "equinor": { symbol: "EQNR.OL", name: "Equinor ASA", type: "stock" },
   "equinor asa": { symbol: "EQNR.OL", name: "Equinor ASA", type: "stock" },
-  eqnr: { symbol: "EQNR.OL", name: "Equinor ASA", type: "stock" },
+  "eqnr": { symbol: "EQNR.OL", name: "Equinor ASA", type: "stock" },
   "eqnr.ol": { symbol: "EQNR.OL", name: "Equinor ASA", type: "stock" },
 
-  dnb: { symbol: "DNB.OL", name: "DNB Bank ASA", type: "stock" },
+  "dnb": { symbol: "DNB.OL", name: "DNB Bank ASA", type: "stock" },
   "dnb bank": { symbol: "DNB.OL", name: "DNB Bank ASA", type: "stock" },
   "dnb bank asa": { symbol: "DNB.OL", name: "DNB Bank ASA", type: "stock" },
   "dnb.ol": { symbol: "DNB.OL", name: "DNB Bank ASA", type: "stock" },
 
   "aker bp": { symbol: "AKRBP.OL", name: "Aker BP ASA", type: "stock" },
-  akrbp: { symbol: "AKRBP.OL", name: "Aker BP ASA", type: "stock" },
+  "akrbp": { symbol: "AKRBP.OL", name: "Aker BP ASA", type: "stock" },
   "akrbp.ol": { symbol: "AKRBP.OL", name: "Aker BP ASA", type: "stock" },
 
-  telenor: { symbol: "TEL.OL", name: "Telenor ASA", type: "stock" },
-  tel: { symbol: "TEL.OL", name: "Telenor ASA", type: "stock" },
+  "telenor": { symbol: "TEL.OL", name: "Telenor ASA", type: "stock" },
+  "tel": { symbol: "TEL.OL", name: "Telenor ASA", type: "stock" },
   "tel.ol": { symbol: "TEL.OL", name: "Telenor ASA", type: "stock" },
 
   "norsk hydro": { symbol: "NHY.OL", name: "Norsk Hydro ASA", type: "stock" },
-  nhy: { symbol: "NHY.OL", name: "Norsk Hydro ASA", type: "stock" },
+  "nhy": { symbol: "NHY.OL", name: "Norsk Hydro ASA", type: "stock" },
   "nhy.ol": { symbol: "NHY.OL", name: "Norsk Hydro ASA", type: "stock" },
 
-  mowi: { symbol: "MOWI.OL", name: "Mowi ASA", type: "stock" },
-  "mowi asa": { symbol: "MOWI.OL", name: "Mowi ASA", type: "stock" },
+  "mowi": { symbol: "MOWI.OL", name: "Mowi ASA", type: "stock" },
+  "mowi ol": { symbol: "MOWI.OL", name: "Mowi ASA", type: "stock" },
   "mowi.ol": { symbol: "MOWI.OL", name: "Mowi ASA", type: "stock" },
 
-  orkla: { symbol: "ORK.OL", name: "Orkla ASA", type: "stock" },
-  ork: { symbol: "ORK.OL", name: "Orkla ASA", type: "stock" },
+  "orkla": { symbol: "ORK.OL", name: "Orkla ASA", type: "stock" },
+  "ork": { symbol: "ORK.OL", name: "Orkla ASA", type: "stock" },
   "ork.ol": { symbol: "ORK.OL", name: "Orkla ASA", type: "stock" },
 
-  salmar: { symbol: "SALM.OL", name: "SalMar ASA", type: "stock" },
-  salm: { symbol: "SALM.OL", name: "SalMar ASA", type: "stock" },
+  "salmar": { symbol: "SALM.OL", name: "SalMar ASA", type: "stock" },
+  "salm": { symbol: "SALM.OL", name: "SalMar ASA", type: "stock" },
   "salm.ol": { symbol: "SALM.OL", name: "SalMar ASA", type: "stock" },
 
-  yara: { symbol: "YAR.OL", name: "Yara International ASA", type: "stock" },
-  yar: { symbol: "YAR.OL", name: "Yara International ASA", type: "stock" },
+  "yara": { symbol: "YAR.OL", name: "Yara International ASA", type: "stock" },
+  "yar": { symbol: "YAR.OL", name: "Yara International ASA", type: "stock" },
   "yar.ol": { symbol: "YAR.OL", name: "Yara International ASA", type: "stock" },
 
-  storebrand: { symbol: "STB.OL", name: "Storebrand ASA", type: "stock" },
-  stb: { symbol: "STB.OL", name: "Storebrand ASA", type: "stock" },
+  "storebrand": { symbol: "STB.OL", name: "Storebrand ASA", type: "stock" },
+  "stb": { symbol: "STB.OL", name: "Storebrand ASA", type: "stock" },
   "stb.ol": { symbol: "STB.OL", name: "Storebrand ASA", type: "stock" },
 
   "subsea 7": { symbol: "SUBC.OL", name: "Subsea 7 SA", type: "stock" },
-  subc: { symbol: "SUBC.OL", name: "Subsea 7 SA", type: "stock" },
+  "subc": { symbol: "SUBC.OL", name: "Subsea 7 SA", type: "stock" },
   "subc.ol": { symbol: "SUBC.OL", name: "Subsea 7 SA", type: "stock" },
 
-  frontline: { symbol: "FRO.OL", name: "Frontline Plc", type: "stock" },
-  fro: { symbol: "FRO.OL", name: "Frontline Plc", type: "stock" },
+  "frontline": { symbol: "FRO.OL", name: "Frontline Plc", type: "stock" },
+  "fro": { symbol: "FRO.OL", name: "Frontline Plc", type: "stock" },
   "fro.ol": { symbol: "FRO.OL", name: "Frontline Plc", type: "stock" },
 
   "golden ocean": { symbol: "GOGL.OL", name: "Golden Ocean Group Ltd", type: "stock" },
-  gogl: { symbol: "GOGL.OL", name: "Golden Ocean Group Ltd", type: "stock" },
+  "gogl": { symbol: "GOGL.OL", name: "Golden Ocean Group Ltd", type: "stock" },
   "gogl.ol": { symbol: "GOGL.OL", name: "Golden Ocean Group Ltd", type: "stock" },
 
-  tomra: { symbol: "TOM.OL", name: "Tomra Systems ASA", type: "stock" },
-  tom: { symbol: "TOM.OL", name: "Tomra Systems ASA", type: "stock" },
+  "tomra": { symbol: "TOM.OL", name: "Tomra Systems ASA", type: "stock" },
+  "tom": { symbol: "TOM.OL", name: "Tomra Systems ASA", type: "stock" },
   "tom.ol": { symbol: "TOM.OL", name: "Tomra Systems ASA", type: "stock" },
 
-  autostore: { symbol: "AUTO.OL", name: "Autostore Holdings Ltd", type: "stock" },
-  auto: { symbol: "AUTO.OL", name: "Autostore Holdings Ltd", type: "stock" },
+  "autostore": { symbol: "AUTO.OL", name: "Autostore Holdings Ltd", type: "stock" },
+  "auto": { symbol: "AUTO.OL", name: "Autostore Holdings Ltd", type: "stock" },
   "auto.ol": { symbol: "AUTO.OL", name: "Autostore Holdings Ltd", type: "stock" },
 
-  nel: { symbol: "NEL.OL", name: "NEL ASA", type: "stock" },
+  "nel": { symbol: "NEL.OL", name: "NEL ASA", type: "stock" },
   "nel asa": { symbol: "NEL.OL", name: "NEL ASA", type: "stock" },
   "nel.ol": { symbol: "NEL.OL", name: "NEL ASA", type: "stock" },
 
-  pgs: { symbol: "PGS.OL", name: "PGS ASA", type: "stock" },
+  "pgs": { symbol: "PGS.OL", name: "PGS ASA", type: "stock" },
   "pgs asa": { symbol: "PGS.OL", name: "PGS ASA", type: "stock" },
   "pgs.ol": { symbol: "PGS.OL", name: "PGS ASA", type: "stock" },
 
-  bakkafrost: { symbol: "BAKKA.OL", name: "P/F Bakkafrost", type: "stock" },
-  bakka: { symbol: "BAKKA.OL", name: "P/F Bakkafrost", type: "stock" },
+  "bakkafrost": { symbol: "BAKKA.OL", name: "P/F Bakkafrost", type: "stock" },
+  "bakka": { symbol: "BAKKA.OL", name: "P/F Bakkafrost", type: "stock" },
   "bakka.ol": { symbol: "BAKKA.OL", name: "P/F Bakkafrost", type: "stock" },
 
   "bw lpg": { symbol: "BWLPG.OL", name: "BW LPG Ltd", type: "stock" },
-  bwlpg: { symbol: "BWLPG.OL", name: "BW LPG Ltd", type: "stock" },
+  "bwlpg": { symbol: "BWLPG.OL", name: "BW LPG Ltd", type: "stock" },
   "bwlpg.ol": { symbol: "BWLPG.OL", name: "BW LPG Ltd", type: "stock" },
 
-  kitron: { symbol: "KIT.OL", name: "Kitron ASA", type: "stock" },
-  kit: { symbol: "KIT.OL", name: "Kitron ASA", type: "stock" },
+  "kitron": { symbol: "KIT.OL", name: "Kitron ASA", type: "stock" },
+  "kit": { symbol: "KIT.OL", name: "Kitron ASA", type: "stock" },
   "kit.ol": { symbol: "KIT.OL", name: "Kitron ASA", type: "stock" },
 
   // USA
-  apple: { symbol: "AAPL", name: "Apple Inc.", type: "stock" },
-  aapl: { symbol: "AAPL", name: "Apple Inc.", type: "stock" },
+  "apple": { symbol: "AAPL", name: "Apple Inc.", type: "stock" },
+  "aapl": { symbol: "AAPL", name: "Apple Inc.", type: "stock" },
 
-  microsoft: { symbol: "MSFT", name: "Microsoft Corp.", type: "stock" },
-  msft: { symbol: "MSFT", name: "Microsoft Corp.", type: "stock" },
+  "microsoft": { symbol: "MSFT", name: "Microsoft Corp.", type: "stock" },
+  "msft": { symbol: "MSFT", name: "Microsoft Corp.", type: "stock" },
 
-  nvidia: { symbol: "NVDA", name: "NVIDIA Corp.", type: "stock" },
-  nvda: { symbol: "NVDA", name: "NVIDIA Corp.", type: "stock" },
+  "nvidia": { symbol: "NVDA", name: "NVIDIA Corp.", type: "stock" },
+  "nvda": { symbol: "NVDA", name: "NVIDIA Corp.", type: "stock" },
 
-  amazon: { symbol: "AMZN", name: "Amazon.com Inc.", type: "stock" },
-  amzn: { symbol: "AMZN", name: "Amazon.com Inc.", type: "stock" },
+  "amazon": { symbol: "AMZN", name: "Amazon.com Inc.", type: "stock" },
+  "amzn": { symbol: "AMZN", name: "Amazon.com Inc.", type: "stock" },
 
-  alphabet: { symbol: "GOOGL", name: "Alphabet Inc.", type: "stock" },
-  google: { symbol: "GOOGL", name: "Alphabet Inc.", type: "stock" },
-  googl: { symbol: "GOOGL", name: "Alphabet Inc.", type: "stock" },
+  "alphabet": { symbol: "GOOGL", name: "Alphabet Inc.", type: "stock" },
+  "google": { symbol: "GOOGL", name: "Alphabet Inc.", type: "stock" },
+  "googl": { symbol: "GOOGL", name: "Alphabet Inc.", type: "stock" },
 
-  meta: { symbol: "META", name: "Meta Platforms Inc.", type: "stock" },
-  facebook: { symbol: "META", name: "Meta Platforms Inc.", type: "stock" },
+  "meta": { symbol: "META", name: "Meta Platforms Inc.", type: "stock" },
+  "facebook": { symbol: "META", name: "Meta Platforms Inc.", type: "stock" },
 
-  tesla: { symbol: "TSLA", name: "Tesla Inc.", type: "stock" },
-  tsla: { symbol: "TSLA", name: "Tesla Inc.", type: "stock" },
+  "tesla": { symbol: "TSLA", name: "Tesla Inc.", type: "stock" },
+  "tsla": { symbol: "TSLA", name: "Tesla Inc.", type: "stock" },
 
   // Krypto
-  bitcoin: { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", type: "crypto" },
-  btc: { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", type: "crypto" },
-  btcusdt: { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", type: "crypto" },
+  "bitcoin": { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", type: "crypto" },
+  "btc": { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", type: "crypto" },
+  "btcusdt": { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", type: "crypto" },
 
-  ethereum: { symbol: "BINANCE:ETHUSDT", name: "Ethereum", type: "crypto" },
-  eth: { symbol: "BINANCE:ETHUSDT", name: "Ethereum", type: "crypto" },
-  ethusdt: { symbol: "BINANCE:ETHUSDT", name: "Ethereum", type: "crypto" },
+  "ethereum": { symbol: "BINANCE:ETHUSDT", name: "Ethereum", type: "crypto" },
+  "eth": { symbol: "BINANCE:ETHUSDT", name: "Ethereum", type: "crypto" },
+  "ethusdt": { symbol: "BINANCE:ETHUSDT", name: "Ethereum", type: "crypto" },
 
-  solana: { symbol: "BINANCE:SOLUSDT", name: "Solana", type: "crypto" },
-  sol: { symbol: "BINANCE:SOLUSDT", name: "Solana", type: "crypto" },
-  solusdt: { symbol: "BINANCE:SOLUSDT", name: "Solana", type: "crypto" },
+  "solana": { symbol: "BINANCE:SOLUSDT", name: "Solana", type: "crypto" },
+  "sol": { symbol: "BINANCE:SOLUSDT", name: "Solana", type: "crypto" },
+  "solusdt": { symbol: "BINANCE:SOLUSDT", name: "Solana", type: "crypto" },
 
-  xrp: { symbol: "BINANCE:XRPUSDT", name: "XRP", type: "crypto" },
-  xrpusdt: { symbol: "BINANCE:XRPUSDT", name: "XRP", type: "crypto" },
+  "xrp": { symbol: "BINANCE:XRPUSDT", name: "XRP", type: "crypto" },
+  "xrpusdt": { symbol: "BINANCE:XRPUSDT", name: "XRP", type: "crypto" },
+  "ripple": { symbol: "BINANCE:XRPUSDT", name: "XRP", type: "crypto" },
 };
 
 function normalizeText(input: string) {
@@ -171,34 +150,101 @@ function resolveSymbol(query: string): ResolvedSymbol | null {
   const q = normalizeText(query);
 
   if (!q) return null;
-  if (MANUAL_SYMBOLS[q]) return MANUAL_SYMBOLS[q];
+
+  if (MANUAL_SYMBOLS[q]) {
+    return MANUAL_SYMBOLS[q];
+  }
 
   for (const [key, value] of Object.entries(MANUAL_SYMBOLS)) {
-    if (q.includes(key)) return value;
+    if (q.includes(key)) {
+      return value;
+    }
   }
 
   return null;
 }
 
-async function fetchFinnhubQuote(symbol: string): Promise<QuoteData> {
+async function fetchYahooQuote(symbol: string) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
+  const res = await fetch(url, { cache: "no-store" });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Yahoo quote error ${res.status} - ${text}`);
+  }
+
+  const data = await res.json();
+  const result = data?.chart?.result?.[0];
+
+  if (!result) {
+    throw new Error("Yahoo mangler chart-data");
+  }
+
+  const meta = result.meta;
+  const quote = result.indicators?.quote?.[0];
+  const closes = quote?.close || [];
+
+  const validCloses = closes.filter((v: number | null) => typeof v === "number");
+  const current =
+    typeof meta?.regularMarketPrice === "number"
+      ? meta.regularMarketPrice
+      : validCloses[validCloses.length - 1];
+
+  const previousClose =
+    typeof meta?.chartPreviousClose === "number"
+      ? meta.chartPreviousClose
+      : validCloses[validCloses.length - 2];
+
+  const high =
+    typeof meta?.regularMarketDayHigh === "number"
+      ? meta.regularMarketDayHigh
+      : current;
+
+  const low =
+    typeof meta?.regularMarketDayLow === "number"
+      ? meta.regularMarketDayLow
+      : current;
+
+  const change = current - previousClose;
+  const dp = previousClose ? (change / previousClose) * 100 : 0;
+
+  return {
+    c: current,
+    pc: previousClose,
+    h: high,
+    l: low,
+    d: change,
+    dp,
+  };
+}
+
+async function fetchFinnhubQuote(symbol: string) {
   const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_API_KEY}`;
   const res = await fetch(url, { cache: "no-store" });
 
   if (!res.ok) {
-    const errorText = await res.text().catch(() => "");
-    throw new Error(`Finnhub quote error ${res.status}${errorText ? ` - ${errorText}` : ""}`);
+    const text = await res.text();
+    throw new Error(`Finnhub quote error ${res.status} - ${text}`);
   }
 
-  const data = (await res.json()) as QuoteData;
-  return data;
+  return res.json();
 }
 
-function buildFallbackAnalysis(asset: ResolvedSymbol, quote: QuoteData) {
+async function fetchQuote(asset: ResolvedSymbol) {
+  if (asset.symbol.endsWith(".OL")) {
+    return fetchYahooQuote(asset.symbol);
+  }
+
+  return fetchFinnhubQuote(asset.symbol);
+}
+
+function buildFallbackAnalysis(asset: ResolvedSymbol, quote: any) {
   const current = Number(quote?.c ?? 0);
   const prevClose = Number(quote?.pc ?? 0);
   const high = Number(quote?.h ?? 0);
   const low = Number(quote?.l ?? 0);
   const changePct = Number(quote?.dp ?? 0);
+
   const absChange = current - prevClose;
   const intradayRangePct = low > 0 ? ((high - low) / low) * 100 : 0;
 
@@ -218,26 +264,27 @@ function buildFallbackAnalysis(asset: ResolvedSymbol, quote: QuoteData) {
 
   const trend =
     changePct > 0
-      ? `${asset.name} viser en oppadgående trend med en endring på ${changePct.toFixed(2)}% i dag.`
+      ? `${asset.name} viser en oppadgående trend med en endring på ${changePct.toFixed(2)}%.`
       : changePct < 0
-      ? `${asset.name} viser en nedadgående trend med en endring på ${changePct.toFixed(2)}% i dag.`
+      ? `${asset.name} viser en nedadgående trend med en endring på ${changePct.toFixed(2)}%.`
       : `${asset.name} er relativt flat i dag uten store bevegelser.`;
 
   const risk =
     intradayRangePct > 5
-      ? `Risikoen vurderes som høy, fordi dagens svingninger har vært store mellom ${low.toFixed(2)} og ${high.toFixed(2)}.`
+      ? `Risikoen er høy, siden svingningene i dag har vært store med et spenn mellom ${low.toFixed(2)} og ${high.toFixed(2)}.`
       : intradayRangePct > 2
-      ? `Risikoen vurderes som moderat, med merkbare dagssvingninger mellom ${low.toFixed(2)} og ${high.toFixed(2)}.`
-      : `Risikoen vurderes som lav til moderat, fordi kursen har vært forholdsvis stabil gjennom dagen.`;
+      ? `Risikoen er moderat, med merkbare dagssvingninger mellom ${low.toFixed(2)} og ${high.toFixed(2)}.`
+      : `Risikoen er lav til moderat, siden kursen har beveget seg relativt stabilt i løpet av dagen.`;
 
   const conclusion =
     recommendation === "Kjøp"
-      ? `Utviklingen er foreløpig positiv, og instrumentet kan være interessant å følge videre dersom momentet fortsetter.`
+      ? `Signalene peker foreløpig positivt, og instrumentet kan være interessant for videre oppfølging dersom momentet holder seg.`
       : recommendation === "Selg"
       ? `Utviklingen er svak akkurat nå, og det kan være lurt å være forsiktig til trenden bedrer seg.`
-      : `Bildet er blandet akkurat nå, og det kan være fornuftig å avvente tydeligere signaler.`;
+      : `Bildet er blandet akkurat nå, og det kan være fornuftig å avvente mer bekreftelse før en tydelig beslutning tas.`;
 
-  const timeframe = asset.type === "crypto" ? "Kort til mellomlang sikt" : "Kort sikt";
+  const timeframe =
+    asset.type === "crypto" ? "Kort til mellomlang sikt" : "Kort sikt";
 
   return {
     symbol: asset.symbol,
@@ -260,24 +307,10 @@ function buildFallbackAnalysis(asset: ResolvedSymbol, quote: QuoteData) {
   };
 }
 
-function safeJsonParse<T>(input: string): T | null {
-  try {
-    return JSON.parse(input) as T;
-  } catch {
+async function buildOpenAIAnalysis(asset: ResolvedSymbol, quote: any) {
+  if (!OPENAI_API_KEY) {
     return null;
   }
-}
-
-function stripCodeFences(input: string) {
-  return input
-    .replace(/^```json/i, "")
-    .replace(/^```/i, "")
-    .replace(/```$/i, "")
-    .trim();
-}
-
-async function buildOpenAIAnalysis(asset: ResolvedSymbol, quote: QuoteData): Promise<AnalysisPayload | null> {
-  if (!OPENAI_API_KEY) return null;
 
   const current = Number(quote?.c ?? 0);
   const prevClose = Number(quote?.pc ?? 0);
@@ -301,7 +334,7 @@ Dagsendring i prosent: ${changePct}
 
 Returner JSON i nøyaktig dette formatet:
 {
-  "recommendation": "Kjøp",
+  "recommendation": "Kjøp | Hold | Selg",
   "score": 1,
   "analysis": {
     "trend": "kort tekst",
@@ -327,7 +360,6 @@ Regler:
     body: JSON.stringify({
       model: "gpt-4o-mini",
       temperature: 0.4,
-      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
@@ -341,58 +373,28 @@ Regler:
     }),
   });
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    return null;
+  }
 
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
 
-  if (!content || typeof content !== "string") return null;
-
-  const parsed = safeJsonParse<AnalysisPayload>(stripCodeFences(content));
-  if (!parsed) return null;
-
-  if (
-    !parsed.recommendation ||
-    typeof parsed.score !== "number" ||
-    !parsed.analysis?.trend ||
-    !parsed.analysis?.risk ||
-    !parsed.analysis?.conclusion ||
-    !parsed.analysis?.timeframe
-  ) {
+  if (!content) {
     return null;
   }
 
-  return parsed;
-}
-
-function buildLegacyResultText(payload: {
-  recommendation: string;
-  score: number;
-  analysis: {
-    trend: string;
-    risk: string;
-    conclusion: string;
-    timeframe: string;
-  };
-}) {
-  return [
-    `Trend: ${payload.analysis.trend}`,
-    `Risiko: ${payload.analysis.risk}`,
-    `Kort konklusjon: ${payload.analysis.conclusion}`,
-    `Anbefaling: ${payload.recommendation}`,
-    `Score: ${payload.score}`,
-    `Tidsvurdering: ${payload.analysis.timeframe}`,
-  ].join("\n");
+  try {
+    return JSON.parse(content);
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    if (!FINNHUB_API_KEY) {
-      return NextResponse.json({ error: "FINNHUB_API_KEY mangler" }, { status: 500 });
-    }
-
-    const body = await req.json().catch(() => ({}));
-    const rawQuery = String(body?.query ?? body?.message ?? "").trim();
+    const body = await req.json();
+    const rawQuery = String(body?.query ?? "").trim();
 
     if (!rawQuery) {
       return NextResponse.json(
@@ -413,7 +415,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const quote = await fetchFinnhubQuote(asset.symbol);
+    const quote = await fetchQuote(asset);
 
     if (!quote || Number(quote?.c ?? 0) === 0) {
       return NextResponse.json(
@@ -425,10 +427,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const fallback = buildFallbackAnalysis(asset, quote);
     const aiAnalysis = await buildOpenAIAnalysis(asset, quote);
+    const fallback = buildFallbackAnalysis(asset, quote);
 
-    const merged = aiAnalysis
+    const result = aiAnalysis
       ? {
           ...fallback,
           recommendation: aiAnalysis.recommendation ?? fallback.recommendation,
@@ -442,25 +444,14 @@ export async function POST(req: NextRequest) {
         }
       : fallback;
 
-    return NextResponse.json({
-      ok: true,
-      ...merged,
-      result: buildLegacyResultText({
-        recommendation: merged.recommendation,
-        score: merged.score,
-        analysis: merged.analysis,
-      }),
-    });
-  } catch (error) {
+    return NextResponse.json(result);
+  } catch (error: any) {
     console.error("Analyze error:", error);
-
-    const message =
-      error instanceof Error ? error.message : "Ukjent feil";
 
     return NextResponse.json(
       {
         error: "Noe gikk galt",
-        message,
+        message: error?.message ?? "Ukjent feil",
       },
       { status: 500 }
     );
