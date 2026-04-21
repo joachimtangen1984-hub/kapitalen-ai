@@ -140,7 +140,7 @@ export default function HomePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: query,
+          query: query,
         }),
       });
 
@@ -159,16 +159,23 @@ export default function HomePage() {
       }
 
       if (!res.ok) {
-        throw new Error("API request failed");
+        throw new Error(data?.message || data?.error || "API request failed");
       }
 
-      const output = data.result || "Ingen analyse mottatt.";
+      const formatted = `
+Trend: ${data.analysis?.trend ?? ""}
+Risiko: ${data.analysis?.risk ?? ""}
+Kort konklusjon: ${data.analysis?.conclusion ?? ""}
+Anbefaling: ${data.recommendation ?? ""}
+Score: ${data.score ?? ""}
+Tidsvurdering: ${data.analysis?.timeframe ?? ""}
+      `.trim();
 
-      setResult(output);
+      setResult(formatted);
       saveToHistory(query);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      setResult("Noe gikk galt. Prøv igjen.");
+      setResult(error?.message || "Noe gikk galt. Prøv igjen.");
     } finally {
       setLoading(false);
     }
