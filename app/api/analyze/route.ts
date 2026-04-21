@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 type AssetType = "stock" | "crypto";
@@ -8,6 +9,28 @@ type ResolvedSymbol = {
   symbol: string;
   name: string;
   type: AssetType;
+};
+
+type QuoteData = {
+  c?: number; // current
+  d?: number; // change
+  dp?: number; // change %
+  h?: number; // high
+  l?: number; // low
+  o?: number; // open
+  pc?: number; // prev close
+  t?: number; // timestamp
+};
+
+type AnalysisPayload = {
+  recommendation: string;
+  score: number;
+  analysis: {
+    trend: string;
+    risk: string;
+    conclusion: string;
+    timeframe: string;
+  };
 };
 
 const MANUAL_SYMBOLS: Record<string, ResolvedSymbol> = {
@@ -35,7 +58,7 @@ const MANUAL_SYMBOLS: Record<string, ResolvedSymbol> = {
   "nhy.ol": { symbol: "NHY.OL", name: "Norsk Hydro ASA", type: "stock" },
 
   mowi: { symbol: "MOWI.OL", name: "Mowi ASA", type: "stock" },
-  "mowi ol": { symbol: "MOWI.OL", name: "Mowi ASA", type: "stock" },
+  "mowi asa": { symbol: "MOWI.OL", name: "Mowi ASA", type: "stock" },
   "mowi.ol": { symbol: "MOWI.OL", name: "Mowi ASA", type: "stock" },
 
   orkla: { symbol: "ORK.OL", name: "Orkla ASA", type: "stock" },
@@ -118,20 +141,20 @@ const MANUAL_SYMBOLS: Record<string, ResolvedSymbol> = {
   tsla: { symbol: "TSLA", name: "Tesla Inc.", type: "stock" },
 
   // Krypto
-  bitcoin: { symbol: "BTC-USD", name: "Bitcoin", type: "crypto" },
-  btc: { symbol: "BTC-USD", name: "Bitcoin", type: "crypto" },
-  "btc-usd": { symbol: "BTC-USD", name: "Bitcoin", type: "crypto" },
+  bitcoin: { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", type: "crypto" },
+  btc: { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", type: "crypto" },
+  btcusdt: { symbol: "BINANCE:BTCUSDT", name: "Bitcoin", type: "crypto" },
 
-  ethereum: { symbol: "ETH-USD", name: "Ethereum", type: "crypto" },
-  eth: { symbol: "ETH-USD", name: "Ethereum", type: "crypto" },
-  "eth-usd": { symbol: "ETH-USD", name: "Ethereum", type: "crypto" },
+  ethereum: { symbol: "BINANCE:ETHUSDT", name: "Ethereum", type: "crypto" },
+  eth: { symbol: "BINANCE:ETHUSDT", name: "Ethereum", type: "crypto" },
+  ethusdt: { symbol: "BINANCE:ETHUSDT", name: "Ethereum", type: "crypto" },
 
-  solana: { symbol: "SOL-USD", name: "Solana", type: "crypto" },
-  sol: { symbol: "SOL-USD", name: "Solana", type: "crypto" },
-  "sol-usd": { symbol: "SOL-USD", name: "Solana", type: "crypto" },
+  solana: { symbol: "BINANCE:SOLUSDT", name: "Solana", type: "crypto" },
+  sol: { symbol: "BINANCE:SOLUSDT", name: "Solana", type: "crypto" },
+  solusdt: { symbol: "BINANCE:SOLUSDT", name: "Solana", type: "crypto" },
 
-  xrp: { symbol: "XRP-USD", name: "XRP", type: "crypto" },
-  "xrp-usd": { symbol: "XRP-USD", name: "XRP", type: "crypto" },
+  xrp: { symbol: "BINANCE:XRPUSDT", name: "XRP", type: "crypto" },
+  xrpusdt: { symbol: "BINANCE:XRPUSDT", name: "XRP", type: "crypto" },
 };
 
 function normalizeText(input: string) {
@@ -157,110 +180,26 @@ function resolveSymbol(query: string): ResolvedSymbol | null {
   return null;
 }
 
-function getYahooSymbol(asset: ResolvedSymbol) {
-  return asset.symbol;
-}
-
-function getCurrency(asset: ResolvedSymbol, yahooCurrency?: string) {
-  if (asset.symbol.endsWith(".OL")) return "NOK";
-  if (asset.type === "crypto") return "USD";
-  return yahooCurrency || "USD";
-}
-
-function round(value: number, decimals = 2) {
-  if (!Number.isFinite(value)) return 0;
-  return Number(value.toFixed(decimals));
-}
-
-async function fetchYahooQuote(asset: ResolvedSymbol) {
-  const symbol = getYahooSymbol(asset);
-
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-    symbol
-  )}?interval=1d&range=5d&includePrePost=false`;
-
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: {
-      "User-Agent": "Mozilla/5.0",
-      Accept: "application/json",
-    },
-  });
+async function fetchFinnhubQuote(symbol: string): Promise<QuoteData> {
+  const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_API_KEY}`;
+  const res = await fetch(url, { cache: "no-store" });
 
   if (!res.ok) {
-    throw new Error(`Yahoo quote error ${res.status}`);
+    const errorText = await res.text().catch(() => "");
+    throw new Error(`Finnhub quote error ${res.status}${errorText ? ` - ${errorText}` : ""}`);
   }
 
-  const data = await res.json();
-  const result = data?.chart?.result?.[0];
-  const error = data?.chart?.error;
-
-  if (error) {
-    throw new Error(error?.description || "Yahoo chart error");
-  }
-
-  if (!result) {
-    throw new Error("Ingen data fra Yahoo");
-  }
-
-  const meta = result.meta || {};
-  const quote = result.indicators?.quote?.[0] || {};
-
-  const closes = (quote.close || []).filter((v: any) => typeof v === "number");
-  const highs = (quote.high || []).filter((v: any) => typeof v === "number");
-  const lows = (quote.low || []).filter((v: any) => typeof v === "number");
-
-  const current =
-    Number(meta.regularMarketPrice) ||
-    Number(closes[closes.length - 1]) ||
-    0;
-
-  const previousClose =
-    Number(meta.previousClose) ||
-    (closes.length >= 2 ? Number(closes[closes.length - 2]) : 0);
-
-  const high =
-    Number(meta.regularMarketDayHigh) ||
-    (highs.length ? Math.max(...highs) : current);
-
-  const low =
-    Number(meta.regularMarketDayLow) ||
-    (lows.length ? Math.min(...lows) : current);
-
-  const change = current - previousClose;
-  const changePercent = previousClose
-    ? (change / previousClose) * 100
-    : 0;
-
-  return {
-    price: round(current),
-    previousClose: round(previousClose),
-    high: round(high),
-    low: round(low),
-    change: round(change),
-    changePercent: round(changePercent),
-    currency: getCurrency(asset, meta.currency),
-  };
+  const data = (await res.json()) as QuoteData;
+  return data;
 }
 
-function buildFallbackAnalysis(
-  asset: ResolvedSymbol,
-  quote: {
-    price: number;
-    previousClose: number;
-    high: number;
-    low: number;
-    change: number;
-    changePercent: number;
-    currency: string;
-  }
-) {
-  const current = quote.price;
-  const prevClose = quote.previousClose;
-  const high = quote.high;
-  const low = quote.low;
-  const changePct = quote.changePercent;
-
+function buildFallbackAnalysis(asset: ResolvedSymbol, quote: QuoteData) {
+  const current = Number(quote?.c ?? 0);
+  const prevClose = Number(quote?.pc ?? 0);
+  const high = Number(quote?.h ?? 0);
+  const low = Number(quote?.l ?? 0);
+  const changePct = Number(quote?.dp ?? 0);
+  const absChange = current - prevClose;
   const intradayRangePct = low > 0 ? ((high - low) / low) * 100 : 0;
 
   let recommendation = "Hold";
@@ -279,31 +218,26 @@ function buildFallbackAnalysis(
 
   const trend =
     changePct > 0
-      ? `${asset.name} viser en oppadgående trend med en endring på ${changePct.toFixed(2)}% siden forrige sluttkurs.`
+      ? `${asset.name} viser en oppadgående trend med en endring på ${changePct.toFixed(2)}% i dag.`
       : changePct < 0
-      ? `${asset.name} viser en nedadgående trend med en endring på ${changePct.toFixed(2)}% siden forrige sluttkurs.`
-      : `${asset.name} er relativt flat akkurat nå uten store bevegelser.`;
+      ? `${asset.name} viser en nedadgående trend med en endring på ${changePct.toFixed(2)}% i dag.`
+      : `${asset.name} er relativt flat i dag uten store bevegelser.`;
 
   const risk =
     intradayRangePct > 5
-      ? `Risikoen vurderes som høy fordi svingningene er store, med et spenn mellom ${low.toFixed(
-          2
-        )} og ${high.toFixed(2)} ${quote.currency}.`
+      ? `Risikoen vurderes som høy, fordi dagens svingninger har vært store mellom ${low.toFixed(2)} og ${high.toFixed(2)}.`
       : intradayRangePct > 2
-      ? `Risikoen vurderes som moderat, med merkbare svingninger mellom ${low.toFixed(
-          2
-        )} og ${high.toFixed(2)} ${quote.currency}.`
-      : `Risikoen vurderes som lav til moderat, siden kursen har vært forholdsvis stabil.`;
+      ? `Risikoen vurderes som moderat, med merkbare dagssvingninger mellom ${low.toFixed(2)} og ${high.toFixed(2)}.`
+      : `Risikoen vurderes som lav til moderat, fordi kursen har vært forholdsvis stabil gjennom dagen.`;
 
   const conclusion =
     recommendation === "Kjøp"
-      ? `Det tekniske bildet er foreløpig positivt, men utviklingen bør fortsatt følges nøye.`
+      ? `Utviklingen er foreløpig positiv, og instrumentet kan være interessant å følge videre dersom momentet fortsetter.`
       : recommendation === "Selg"
       ? `Utviklingen er svak akkurat nå, og det kan være lurt å være forsiktig til trenden bedrer seg.`
       : `Bildet er blandet akkurat nå, og det kan være fornuftig å avvente tydeligere signaler.`;
 
-  const timeframe =
-    asset.type === "crypto" ? "Kort til mellomlang sikt" : "Kort sikt";
+  const timeframe = asset.type === "crypto" ? "Kort til mellomlang sikt" : "Kort sikt";
 
   return {
     symbol: asset.symbol,
@@ -313,9 +247,8 @@ function buildFallbackAnalysis(
     previousClose: prevClose,
     high,
     low,
-    change: quote.change,
+    change: absChange,
     changePercent: changePct,
-    currency: quote.currency,
     recommendation,
     score,
     analysis: {
@@ -327,19 +260,30 @@ function buildFallbackAnalysis(
   };
 }
 
-async function buildOpenAIAnalysis(
-  asset: ResolvedSymbol,
-  quote: {
-    price: number;
-    previousClose: number;
-    high: number;
-    low: number;
-    change: number;
-    changePercent: number;
-    currency: string;
+function safeJsonParse<T>(input: string): T | null {
+  try {
+    return JSON.parse(input) as T;
+  } catch {
+    return null;
   }
-) {
+}
+
+function stripCodeFences(input: string) {
+  return input
+    .replace(/^```json/i, "")
+    .replace(/^```/i, "")
+    .replace(/```$/i, "")
+    .trim();
+}
+
+async function buildOpenAIAnalysis(asset: ResolvedSymbol, quote: QuoteData): Promise<AnalysisPayload | null> {
   if (!OPENAI_API_KEY) return null;
+
+  const current = Number(quote?.c ?? 0);
+  const prevClose = Number(quote?.pc ?? 0);
+  const high = Number(quote?.h ?? 0);
+  const low = Number(quote?.l ?? 0);
+  const changePct = Number(quote?.dp ?? 0);
 
   const prompt = `
 Du er en norsk finansassistent.
@@ -349,15 +293,15 @@ Analyser følgende instrument:
 Navn: ${asset.name}
 Symbol: ${asset.symbol}
 Type: ${asset.type}
-Siste pris: ${quote.price} ${quote.currency}
-Forrige sluttkurs: ${quote.previousClose} ${quote.currency}
-Dagens høy: ${quote.high} ${quote.currency}
-Dagens lav: ${quote.low} ${quote.currency}
-Endring i prosent: ${quote.changePercent}
+Siste pris: ${current}
+Forrige sluttkurs: ${prevClose}
+Dagens høy: ${high}
+Dagens lav: ${low}
+Dagsendring i prosent: ${changePct}
 
 Returner JSON i nøyaktig dette formatet:
 {
-  "recommendation": "Kjøp | Hold | Selg",
+  "recommendation": "Kjøp",
   "score": 1,
   "analysis": {
     "trend": "kort tekst",
@@ -383,11 +327,11 @@ Regler:
     body: JSON.stringify({
       model: "gpt-4o-mini",
       temperature: 0.4,
+      response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
-          content:
-            "Du er en presis norsk finansassistent som kun svarer med gyldig JSON.",
+          content: "Du er en presis norsk finansassistent som kun svarer med gyldig JSON.",
         },
         {
           role: "user",
@@ -397,25 +341,57 @@ Regler:
     }),
   });
 
-  if (!res.ok) {
-    return null;
-  }
+  if (!res.ok) return null;
 
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
 
-  if (!content) return null;
+  if (!content || typeof content !== "string") return null;
 
-  try {
-    return JSON.parse(content);
-  } catch {
+  const parsed = safeJsonParse<AnalysisPayload>(stripCodeFences(content));
+  if (!parsed) return null;
+
+  if (
+    !parsed.recommendation ||
+    typeof parsed.score !== "number" ||
+    !parsed.analysis?.trend ||
+    !parsed.analysis?.risk ||
+    !parsed.analysis?.conclusion ||
+    !parsed.analysis?.timeframe
+  ) {
     return null;
   }
+
+  return parsed;
+}
+
+function buildLegacyResultText(payload: {
+  recommendation: string;
+  score: number;
+  analysis: {
+    trend: string;
+    risk: string;
+    conclusion: string;
+    timeframe: string;
+  };
+}) {
+  return [
+    `Trend: ${payload.analysis.trend}`,
+    `Risiko: ${payload.analysis.risk}`,
+    `Kort konklusjon: ${payload.analysis.conclusion}`,
+    `Anbefaling: ${payload.recommendation}`,
+    `Score: ${payload.score}`,
+    `Tidsvurdering: ${payload.analysis.timeframe}`,
+  ].join("\n");
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    if (!FINNHUB_API_KEY) {
+      return NextResponse.json({ error: "FINNHUB_API_KEY mangler" }, { status: 500 });
+    }
+
+    const body = await req.json().catch(() => ({}));
     const rawQuery = String(body?.query ?? body?.message ?? "").trim();
 
     if (!rawQuery) {
@@ -431,16 +407,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "Fant ikke instrument",
-          message:
-            "Prøv f.eks. Equinor, DNB, Aker BP, Apple, Bitcoin eller Ethereum.",
+          message: "Prøv f.eks. Equinor, DNB, Aker BP, Apple, Bitcoin eller Ethereum.",
         },
         { status: 404 }
       );
     }
 
-    const quote = await fetchYahooQuote(asset);
+    const quote = await fetchFinnhubQuote(asset.symbol);
 
-    if (!quote || Number(quote.price ?? 0) === 0) {
+    if (!quote || Number(quote?.c ?? 0) === 0) {
       return NextResponse.json(
         {
           error: "Fant ikke kursdata",
@@ -450,37 +425,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const aiAnalysis = await buildOpenAIAnalysis(asset, quote);
     const fallback = buildFallbackAnalysis(asset, quote);
+    const aiAnalysis = await buildOpenAIAnalysis(asset, quote);
 
-    const result = aiAnalysis
+    const merged = aiAnalysis
       ? {
           ...fallback,
-          recommendation:
-            aiAnalysis.recommendation ?? fallback.recommendation,
-          score:
-            typeof aiAnalysis.score === "number"
-              ? aiAnalysis.score
-              : fallback.score,
+          recommendation: aiAnalysis.recommendation ?? fallback.recommendation,
+          score: typeof aiAnalysis.score === "number" ? aiAnalysis.score : fallback.score,
           analysis: {
             trend: aiAnalysis.analysis?.trend ?? fallback.analysis.trend,
             risk: aiAnalysis.analysis?.risk ?? fallback.analysis.risk,
-            conclusion:
-              aiAnalysis.analysis?.conclusion ?? fallback.analysis.conclusion,
-            timeframe:
-              aiAnalysis.analysis?.timeframe ?? fallback.analysis.timeframe,
+            conclusion: aiAnalysis.analysis?.conclusion ?? fallback.analysis.conclusion,
+            timeframe: aiAnalysis.analysis?.timeframe ?? fallback.analysis.timeframe,
           },
         }
       : fallback;
 
-    return NextResponse.json(result);
-  } catch (error: any) {
+    return NextResponse.json({
+      ok: true,
+      ...merged,
+      result: buildLegacyResultText({
+        recommendation: merged.recommendation,
+        score: merged.score,
+        analysis: merged.analysis,
+      }),
+    });
+  } catch (error) {
     console.error("Analyze error:", error);
+
+    const message =
+      error instanceof Error ? error.message : "Ukjent feil";
 
     return NextResponse.json(
       {
         error: "Noe gikk galt",
-        message: error?.message ?? "Ukjent feil",
+        message,
       },
       { status: 500 }
     );
