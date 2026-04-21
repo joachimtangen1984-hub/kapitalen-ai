@@ -2,6 +2,30 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+type ApiResponse = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  result?: string;
+  symbol?: string;
+  name?: string;
+  type?: "stock" | "crypto";
+  price?: number;
+  previousClose?: number;
+  high?: number;
+  low?: number;
+  change?: number;
+  changePercent?: number;
+  recommendation?: string;
+  score?: number;
+  analysis?: {
+    trend?: string;
+    risk?: string;
+    conclusion?: string;
+    timeframe?: string;
+  };
+};
+
 type ParsedAnalysis = {
   trend: string;
   risiko: string;
@@ -79,6 +103,27 @@ function formatHistoryLabel(query: string) {
   return query.length > 28 ? `${query.slice(0, 28)}...` : query;
 }
 
+function formatPrice(value?: number, symbol?: string) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "—";
+  }
+
+  const isCrypto = symbol?.startsWith("BINANCE:");
+
+  return new Intl.NumberFormat("nb-NO", {
+    minimumFractionDigits: isCrypto ? 0 : 2,
+    maximumFractionDigits: isCrypto ? 0 : 2,
+  }).format(value);
+}
+
+function formatPercent(value?: number) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "—";
+  }
+
+  return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
 export default function HomePage() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState("");
@@ -86,6 +131,7 @@ export default function HomePage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [limitMessage, setLimitMessage] = useState("");
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [apiData, setApiData] = useState<ApiResponse | null>(null);
 
   const parsed = useMemo(() => parseAnalysis(result), [result]);
 
@@ -127,6 +173,7 @@ export default function HomePage() {
 
     setLoading(true);
     setResult("");
+    setApiData(null);
     setLimitMessage("");
 
     if (forcedQuery) {
@@ -140,42 +187,44 @@ export default function HomePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          query: query,
+          query,
         }),
       });
 
-      const data = await res.json();
+      const data: ApiResponse = await res.json();
 
-      if (typeof data.remaining === "number") {
-        setRemaining(data.remaining);
+      if (typeof (data as any).remaining === "number") {
+        setRemaining((data as any).remaining);
       }
 
       if (res.status === 429) {
         setLimitMessage(
           data.result ||
+            data.message ||
             "Du har brukt opp gratisgrensen i dag. Oppgrader for ubegrenset tilgang."
         );
         return;
       }
 
       if (!res.ok) {
-        throw new Error(data?.message || data?.error || "API request failed");
+        const errorMessage =
+          data.message || data.error || "Noe gikk galt. Prøv igjen.";
+        setResult(errorMessage);
+        return;
       }
 
-      const formatted = `
-Trend: ${data.analysis?.trend ?? ""}
-Risiko: ${data.analysis?.risk ?? ""}
-Kort konklusjon: ${data.analysis?.conclusion ?? ""}
-Anbefaling: ${data.recommendation ?? ""}
-Score: ${data.score ?? ""}
-Tidsvurdering: ${data.analysis?.timeframe ?? ""}
-      `.trim();
+      setApiData(data);
 
-      setResult(formatted);
+      const output =
+        data.result ||
+        data.message ||
+        "Ingen analyse mottatt.";
+
+      setResult(output);
       saveToHistory(query);
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
-      setResult(error?.message || "Noe gikk galt. Prøv igjen.");
+      setResult("Noe gikk galt. Prøv igjen.");
     } finally {
       setLoading(false);
     }
@@ -190,13 +239,24 @@ Tidsvurdering: ${data.analysis?.timeframe ?? ""}
     setHistory([]);
   };
 
+  const recommendation =
+    apiData?.recommendation || parsed.anbefaling || "";
+  const score =
+    typeof apiData?.score === "number"
+      ? String(apiData.score)
+      : parsed.score || "";
+
+  const trend =
+    apiData?.analysis?.trend || parsed.trend || "";
+  const risiko =
+    apiData?.analysis?.risk || parsed.risiko || "";
+  const konklusjon =
+    apiData?.analysis?.conclusion || parsed.konklusjon || "";
+  const tidsvurdering =
+    apiData?.analysis?.timeframe || parsed.tidsvurdering || "";
+
   const hasStructuredResult =
-    parsed.trend ||
-    parsed.risiko ||
-    parsed.konklusjon ||
-    parsed.anbefaling ||
-    parsed.score ||
-    parsed.tidsvurdering;
+    trend || risiko || konklusjon || recommendation || score || tidsvurdering;
 
   return (
     <main className="min-h-screen bg-[#f6f4f1] text-[#111]">
@@ -357,23 +417,52 @@ Tidsvurdering: ${data.analysis?.timeframe ?? ""}
 
             {result && (
               <div className="rounded-[28px] bg-white p-6 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-4">
-                  <h2 className="text-2xl font-semibold">AI-analyse</h2>
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold">AI-analyse</h2>
+
+                    {apiData?.name && apiData?.symbol && (
+                      <div className="mt-2 text-sm text-black/50">
+                        {apiData.name} ({apiData.symbol})
+                        {typeof apiData.price === "number" && (
+                          <>
+                            {" "}•{" "}
+                            {formatPrice(apiData.price, apiData.symbol)}{" "}
+                            {apiData.type === "crypto" ? "USD" : ""}
+                          </>
+                        )}
+                        {typeof apiData.changePercent === "number" && (
+                          <>
+                            {" "}•{" "}
+                            <span
+                              className={
+                                apiData.changePercent >= 0
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }
+                            >
+                              {formatPercent(apiData.changePercent)}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {parsed.anbefaling && (
+                    {recommendation && (
                       <span
                         className={`rounded-full border px-4 py-2 text-sm font-semibold ${getRecommendationStyle(
-                          parsed.anbefaling
+                          recommendation
                         )}`}
                       >
-                        {parsed.anbefaling}
+                        {recommendation}
                       </span>
                     )}
 
-                    {parsed.score && (
+                    {score && (
                       <span className="rounded-full border border-blue-200 bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700">
-                        Score: {parsed.score}
+                        Score: {score}
                       </span>
                     )}
                   </div>
@@ -381,39 +470,39 @@ Tidsvurdering: ${data.analysis?.timeframe ?? ""}
 
                 {hasStructuredResult ? (
                   <div className="space-y-4 text-[17px] leading-8 text-black/85">
-                    {parsed.trend && (
+                    {trend && (
                       <div>
                         <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
                           Trend
                         </div>
-                        <div>{parsed.trend}</div>
+                        <div>{trend}</div>
                       </div>
                     )}
 
-                    {parsed.risiko && (
+                    {risiko && (
                       <div>
                         <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
                           Risiko
                         </div>
-                        <div>{parsed.risiko}</div>
+                        <div>{risiko}</div>
                       </div>
                     )}
 
-                    {parsed.konklusjon && (
+                    {konklusjon && (
                       <div>
                         <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
                           Kort konklusjon
                         </div>
-                        <div>{parsed.konklusjon}</div>
+                        <div>{konklusjon}</div>
                       </div>
                     )}
 
-                    {parsed.tidsvurdering && (
+                    {tidsvurdering && (
                       <div>
                         <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
                           Tidsvurdering
                         </div>
-                        <div>{parsed.tidsvurdering}</div>
+                        <div>{tidsvurdering}</div>
                       </div>
                     )}
                   </div>
