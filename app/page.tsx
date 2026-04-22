@@ -1,47 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
-type ChartPoint = {
-  label: string;
-  value: number;
-};
-
-type AnalysisResponse = {
+type AnalyzeResponse = {
   symbol: string;
   name: string;
   type: "stock" | "crypto";
-  source?: string;
-  currency?: string;
-  currencyLabel?: string;
   price: number;
-  open: number;
+  previousClose: number;
   high: number;
   low: number;
-  previousClose: number;
   change: number;
   changePercent: number;
-  support: number;
-  resistance: number;
-  bias: string;
-  updatedAt: string;
-  recommendation: "Kjøp" | "Hold" | "Selg";
+  recommendation: "Kjøp" | "Hold" | "Selg" | string;
   score: number;
-  chartData?: ChartPoint[];
+  bias?: string;
+  support?: number;
+  resistance?: number;
+  source?: string;
+  updatedAt?: string;
   analysis: {
     trend: string;
     risk: string;
     conclusion: string;
     timeframe: string;
-    why: string;
-    whatChangesView: string;
+    why?: string;
+    uncertainty?: string;
+  };
+  chart?: {
+    points: number[];
   };
 };
 
 type HistoryItem = {
   id: string;
-  query: string;
-  createdAt: string;
+  label: string;
 };
 
 function formatNumber(value: number, decimals = 2) {
@@ -52,212 +45,139 @@ function formatNumber(value: number, decimals = 2) {
   }).format(value);
 }
 
+function formatPrice(value: number, type?: "stock" | "crypto", symbol?: string) {
+  if (!Number.isFinite(value)) return "-";
+
+  const isUsd =
+    symbol?.includes("BINANCE:") ||
+    ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA"].includes(symbol || "");
+
+  const currency = isUsd ? "USD" : "NOK";
+
+  return `${formatNumber(value, 2)} ${currency}`;
+}
+
 function formatPercent(value: number) {
   if (!Number.isFinite(value)) return "-";
-  const formatted = formatNumber(Math.abs(value), 2);
-  return `${value >= 0 ? "+" : "-"}${formatted}%`;
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${formatNumber(value, 2)}%`;
 }
 
-function formatDate(value?: string) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
+function getRecommendationClasses(value?: string) {
+  const v = (value || "").toLowerCase();
 
-  return new Intl.DateTimeFormat("nb-NO", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
+  if (v.includes("kjøp")) {
+    return "border border-green-200 bg-green-100 text-green-800";
+  }
+  if (v.includes("hold")) {
+    return "border border-yellow-200 bg-yellow-100 text-yellow-800";
+  }
+  if (v.includes("selg")) {
+    return "border border-red-200 bg-red-100 text-red-800";
+  }
+
+  return "border border-gray-200 bg-gray-100 text-gray-700";
 }
 
-function formatHistoryLabel(query: string) {
-  return query.length > 30 ? `${query.slice(0, 30)}...` : query;
-}
+function getBiasClasses(value?: string) {
+  const v = (value || "").toLowerCase();
 
-function getRecommendationStyle(recommendation?: string) {
-  const value = (recommendation || "").toLowerCase();
-
-  if (value.includes("kjøp")) {
-    return "bg-green-100 text-green-700 border-green-200";
+  if (v.includes("positiv")) {
+    return "border border-green-200 bg-green-100 text-green-800";
+  }
+  if (v.includes("negativ")) {
+    return "border border-red-200 bg-red-100 text-red-800";
   }
 
-  if (value.includes("hold")) {
-    return "bg-yellow-100 text-yellow-700 border-yellow-200";
-  }
-
-  if (value.includes("selg")) {
-    return "bg-red-100 text-red-700 border-red-200";
-  }
-
-  return "bg-gray-100 text-gray-700 border-gray-200";
-}
-
-function getBiasStyle(bias?: string) {
-  const value = (bias || "").toLowerCase();
-
-  if (value.includes("positiv")) {
-    return "bg-green-100 text-green-700 border-green-200";
-  }
-
-  if (value.includes("negativ")) {
-    return "bg-red-100 text-red-700 border-red-200";
-  }
-
-  return "bg-gray-100 text-gray-700 border-gray-200";
+  return "border border-gray-200 bg-gray-100 text-gray-700";
 }
 
 function getChangeColor(value?: number) {
-  if ((value ?? 0) > 0) return "text-green-600";
-  if ((value ?? 0) < 0) return "text-red-500";
-  return "text-black/55";
+  if ((value || 0) > 0) return "text-green-600";
+  if ((value || 0) < 0) return "text-red-600";
+  return "text-gray-600";
 }
 
-function MiniChart({ data }: { data: ChartPoint[] }) {
-  if (!data || data.length < 2) {
+function SimpleChart({
+  points,
+  positive,
+}: {
+  points?: number[];
+  positive?: boolean;
+}) {
+  const chart = useMemo(() => {
+    if (!points || points.length < 2) return null;
+
+    const width = 900;
+    const height = 280;
+    const padding = 24;
+
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const range = max - min || 1;
+
+    const coords = points.map((point, index) => {
+      const x =
+        padding + (index / (points.length - 1)) * (width - padding * 2);
+      const y =
+        height - padding - ((point - min) / range) * (height - padding * 2);
+      return [x, y];
+    });
+
+    const path = coords
+      .map((c, i) => `${i === 0 ? "M" : "L"} ${c[0]} ${c[1]}`)
+      .join(" ");
+
+    const areaPath = `${path} L ${coords[coords.length - 1][0]} ${height - padding} L ${coords[0][0]} ${height - padding} Z`;
+
+    return { width, height, path, areaPath };
+  }, [points]);
+
+  if (!chart) {
     return (
-      <div className="flex h-[260px] items-center justify-center rounded-[28px] bg-[#f7f7f7] text-base text-black/40 ring-1 ring-black/5">
+      <div className="flex h-[280px] items-center justify-center rounded-[28px] bg-[#f3f4f6] text-black/35">
         Ingen grafdata tilgjengelig
       </div>
     );
   }
 
-  const width = 1000;
-  const height = 280;
-  const padding = 22;
-
-  const values = data.map((d) => d.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-
-  const points = data.map((point, index) => {
-    const x =
-      padding + (index * (width - padding * 2)) / Math.max(data.length - 1, 1);
-    const y =
-      height - padding - ((point.value - min) / range) * (height - padding * 2);
-    return { x, y };
-  });
-
-  const polylinePoints = points.map((p) => `${p.x},${p.y}`).join(" ");
-  const areaPoints = [
-    `${points[0].x},${height - padding}`,
-    ...points.map((p) => `${p.x},${p.y}`),
-    `${points[points.length - 1].x},${height - padding}`,
-  ].join(" ");
-
-  const isPositive = data[data.length - 1].value >= data[0].value;
-  const lineColor = isPositive ? "#16a34a" : "#dc2626";
-  const fillColor = isPositive ? "rgba(22, 163, 74, 0.10)" : "rgba(220, 38, 38, 0.10)";
-
   return (
-    <div className="rounded-[28px] bg-[#fcfcfc] p-5 ring-1 ring-black/5">
+    <div className="overflow-hidden rounded-[28px] bg-[#f3f4f6] p-4">
       <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-[260px] w-full"
+        viewBox={`0 0 ${chart.width} ${chart.height}`}
+        className="h-[280px] w-full"
         preserveAspectRatio="none"
       >
-        <line
-          x1={padding}
-          y1={height - padding}
-          x2={width - padding}
-          y2={height - padding}
-          stroke="rgba(0,0,0,0.08)"
-          strokeWidth="1"
+        <path
+          d={chart.areaPath}
+          fill={positive ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.10)"}
         />
-        <polygon points={areaPoints} fill={fillColor} />
-        <polyline
+        <path
+          d={chart.path}
           fill="none"
-          stroke={lineColor}
+          stroke={positive ? "#16a34a" : "#dc2626"}
           strokeWidth="4"
-          points={polylinePoints}
-          strokeLinejoin="round"
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
       </svg>
-
-      <div className="mt-4 flex justify-between gap-2 overflow-hidden text-sm text-black/45">
-        <span>{data[0]?.label}</span>
-        <span>{data[Math.floor(data.length / 2)]?.label}</span>
-        <span>{data[data.length - 1]?.label}</span>
-      </div>
-    </div>
-  );
-}
-
-function InfoCard({
-  title,
-  children,
-  tone = "default",
-}: {
-  title: string;
-  children: React.ReactNode;
-  tone?: "default" | "warm" | "cool";
-}) {
-  const toneClass =
-    tone === "warm"
-      ? "bg-[#f7f2e8]"
-      : tone === "cool"
-      ? "bg-[#f3f6fb]"
-      : "bg-[#fcfcfc] ring-1 ring-black/5";
-
-  return (
-    <div className={`rounded-[28px] p-5 ${toneClass}`}>
-      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
-        {title}
-      </div>
-      <div className="text-[18px] leading-8 text-black/85">{children}</div>
     </div>
   );
 }
 
 export default function HomePage() {
-  const [input, setInput] = useState("");
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<AnalysisResponse | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("kapitalen-history");
-
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as HistoryItem[];
-        setHistory(parsed);
-      } catch (error) {
-        console.error("Kunne ikke lese historikk", error);
-      }
-    }
-  }, []);
-
-  const saveToHistory = (query: string) => {
-    const item: HistoryItem = {
-      id: crypto.randomUUID(),
-      query,
-      createdAt: new Date().toISOString(),
-    };
-
-    setHistory((prev) => {
-      const filtered = prev.filter(
-        (entry) => entry.query.toLowerCase() !== query.toLowerCase()
-      );
-      const updated = [item, ...filtered].slice(0, 8);
-      localStorage.setItem("kapitalen-history", JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  const handleAnalyze = async (forcedQuery?: string) => {
-    const query = (forcedQuery ?? input).trim();
-
-    if (!query) return;
+  async function handleAnalyze(forced?: string) {
+    const value = (forced ?? query).trim();
+    if (!value) return;
 
     setLoading(true);
-    setResult(null);
-    setErrorMessage("");
-
-    if (forcedQuery) {
-      setInput(forcedQuery);
-    }
+    setError("");
 
     try {
       const res = await fetch("/api/analyze", {
@@ -266,35 +186,41 @@ export default function HomePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          query,
+          query: value,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setErrorMessage(data?.message || data?.error || "Noe gikk galt.");
-        return;
+        throw new Error(data?.message || data?.error || "Noe gikk galt");
       }
 
       setResult(data);
-      saveToHistory(query);
-    } catch (error) {
-      console.error(error);
-      setErrorMessage("Noe gikk galt. Prøv igjen.");
+
+      setHistory((prev) => {
+        const next = [
+          { id: crypto.randomUUID(), label: value },
+          ...prev.filter((item) => item.label.toLowerCase() !== value.toLowerCase()),
+        ].slice(0, 8);
+
+        return next;
+      });
+    } catch (err: any) {
+      setResult(null);
+      setError(err?.message || "Noe gikk galt");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const fillExample = (text: string) => {
-    setInput(text);
-  };
-
-  const clearHistory = () => {
-    localStorage.removeItem("kapitalen-history");
-    setHistory([]);
-  };
+  const examples = [
+    "analyser equinor aksjen",
+    "analyser dnb",
+    "analyser apple aksjen",
+    "analyser bitcoin",
+    "analyser ethereum",
+  ];
 
   return (
     <main className="min-h-screen bg-[#f6f4f1] text-[#111]">
@@ -380,20 +306,18 @@ export default function HomePage() {
               </h1>
 
               <div className="mt-4 text-center text-sm text-black/50">
-                Gratisbrukere kan kjøre 3 analyser per dag.
+                Søk etter aksjer og krypto, på norsk.
               </div>
 
               <div className="mt-6 flex items-center gap-3 rounded-full bg-[#f3f4f6] p-2">
                 <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleAnalyze();
-                    }
+                    if (e.key === "Enter") handleAnalyze();
                   }}
                   className="flex-1 bg-transparent px-4 outline-none"
-                  placeholder="Søk etter aksje eller krypto, f.eks. Equinor, Apple, Bitcoin..."
+                  placeholder="Søk etter aksje eller krypto, f.eks. Equinor, DNB, Apple, Bitcoin..."
                 />
                 <button
                   onClick={() => handleAnalyze()}
@@ -406,167 +330,204 @@ export default function HomePage() {
 
               <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-black/50">
                 <span>Populært:</span>
-
-                <button
-                  onClick={() => fillExample("analyser equinor aksjen")}
-                  className="rounded-full bg-[#f3f4f6] px-4 py-2 transition hover:bg-[#e9ebef]"
-                >
-                  Equinor
-                </button>
-
-                <button
-                  onClick={() => fillExample("analyser apple aksjen")}
-                  className="rounded-full bg-[#f3f4f6] px-4 py-2 transition hover:bg-[#e9ebef]"
-                >
-                  Apple (AAPL)
-                </button>
-
-                <button
-                  onClick={() => fillExample("analyser bitcoin")}
-                  className="rounded-full bg-[#f3f4f6] px-4 py-2 transition hover:bg-[#e9ebef]"
-                >
-                  Bitcoin (BTC)
-                </button>
-
-                <button
-                  onClick={() => fillExample("analyser ethereum")}
-                  className="rounded-full bg-[#f3f4f6] px-4 py-2 transition hover:bg-[#e9ebef]"
-                >
-                  Ethereum (ETH)
-                </button>
+                {examples.map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => setQuery(item)}
+                    className="rounded-full bg-[#f3f4f6] px-4 py-2 transition hover:bg-[#e9ebef]"
+                  >
+                    {item.replace("analyser ", "")}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {errorMessage && (
+            {error && (
               <div className="rounded-[28px] border border-red-200 bg-red-50 p-5 shadow-sm">
                 <div className="text-lg font-semibold text-red-800">
                   AI-analyse
                 </div>
-                <p className="mt-2 text-red-700">{errorMessage}</p>
+                <p className="mt-2 text-red-700">{error}</p>
               </div>
             )}
 
             {result && (
-              <div className="rounded-[32px] bg-white p-7 shadow-sm">
-                <div className="flex flex-col gap-7">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div>
-                      <h2 className="text-2xl font-semibold">AI-analyse</h2>
-
-                      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[38px] font-semibold leading-tight">
-                        <span>
-                          {result.name} ({result.symbol})
-                        </span>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[28px] font-semibold">
-                        <span>
-                          {formatNumber(result.price)} {result.currencyLabel}
-                        </span>
-                        <span className="text-black/25">•</span>
-                        <span className={getChangeColor(result.changePercent)}>
-                          {formatPercent(result.changePercent)}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2 text-sm text-black/55">
-                        <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
-                          Datakilde: {result.source || "finnhub"}
-                        </span>
-                        <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
-                          Sist oppdatert: {formatDate(result.updatedAt)}
-                        </span>
-                      </div>
+              <div className="rounded-[32px] bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-4xl font-bold leading-tight">
+                      {result.name}
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-black/80">
+                      ({result.symbol})
                     </div>
 
-                    <div className="flex flex-wrap gap-2 xl:max-w-[320px] xl:justify-end">
-                      <span
-                        className={`rounded-full border px-4 py-2 text-sm font-semibold ${getRecommendationStyle(
-                          result.recommendation
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <div className="text-5xl font-bold">
+                        {formatPrice(result.price, result.type, result.symbol)}
+                      </div>
+                      <div
+                        className={`text-3xl font-bold ${getChangeColor(
+                          result.changePercent
                         )}`}
                       >
-                        {result.recommendation}
-                      </span>
+                        {formatPercent(result.changePercent)}
+                      </div>
+                    </div>
 
-                      <span className="rounded-full border border-blue-200 bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700">
-                        Score: {result.score}
+                    <div className="mt-4 flex flex-wrap gap-3 text-sm text-black/60">
+                      <span className="rounded-full bg-[#f3f4f6] px-4 py-2">
+                        Datakilde: {result.source || "yahoo/finnhub"}
                       </span>
-
-                      <span
-                        className={`rounded-full border px-4 py-2 text-sm font-semibold ${getBiasStyle(
-                          result.bias
-                        )}`}
-                      >
-                        Bias: {result.bias}
+                      <span className="rounded-full bg-[#f3f4f6] px-4 py-2">
+                        Sist oppdatert: {result.updatedAt || "-"}
                       </span>
                     </div>
                   </div>
 
-                  <MiniChart data={result.chartData || []} />
-
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-[24px] bg-[#f7f7f7] p-5">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                        Støtte
-                      </div>
-                      <div className="mt-3 text-[28px] font-semibold leading-tight">
-                        {formatNumber(result.support)} {result.currencyLabel}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[24px] bg-[#f7f7f7] p-5">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                        Motstand
-                      </div>
-                      <div className="mt-3 text-[28px] font-semibold leading-tight">
-                        {formatNumber(result.resistance)} {result.currencyLabel}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[24px] bg-[#f7f7f7] p-5">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                        Dagens høy / lav
-                      </div>
-                      <div className="mt-3 text-[24px] font-semibold leading-tight">
-                        {formatNumber(result.high)} / {formatNumber(result.low)}{" "}
-                        {result.currencyLabel}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[24px] bg-[#f7f7f7] p-5">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
-                        Forrige sluttkurs
-                      </div>
-                      <div className="mt-3 text-[28px] font-semibold leading-tight">
-                        {formatNumber(result.previousClose)} {result.currencyLabel}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <InfoCard title="Trend">{result.analysis.trend}</InfoCard>
-                    <InfoCard title="Risiko">{result.analysis.risk}</InfoCard>
-                    <InfoCard title="Konklusjon">
-                      {result.analysis.conclusion}
-                    </InfoCard>
-                    <InfoCard title="Tidshorisont">
-                      {result.analysis.timeframe}
-                    </InfoCard>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <InfoCard title="Hvorfor kjøp / hold / selg?" tone="warm">
-                      {result.analysis.why}
-                    </InfoCard>
-
-                    <InfoCard
-                      title="Hva må skje for at synet endres?"
-                      tone="cool"
+                  <div className="flex flex-col gap-3">
+                    <span
+                      className={`rounded-full px-4 py-2 text-sm font-semibold ${getRecommendationClasses(
+                        result.recommendation
+                      )}`}
                     >
-                      {result.analysis.whatChangesView}
-                    </InfoCard>
+                      {result.recommendation}
+                    </span>
+
+                    <span className="rounded-full border border-blue-200 bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700">
+                      Score: {result.score}
+                    </span>
+
+                    <span
+                      className={`rounded-full px-4 py-2 text-sm font-semibold ${getBiasClasses(
+                        result.bias
+                      )}`}
+                    >
+                      Bias: {result.bias || "Nøytral"}
+                    </span>
                   </div>
                 </div>
+
+                <SimpleChart
+                  points={result.chart?.points}
+                  positive={(result.changePercent || 0) >= 0}
+                />
+
+                <div className="mt-6 grid gap-4 md:grid-cols-4">
+                  <div className="rounded-[24px] bg-[#f8f8f8] p-4">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                      Støtte
+                    </div>
+                    <div className="mt-3 text-2xl font-bold">
+                      {formatPrice(
+                        result.support ?? result.low,
+                        result.type,
+                        result.symbol
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] bg-[#f8f8f8] p-4">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                      Motstand
+                    </div>
+                    <div className="mt-3 text-2xl font-bold">
+                      {formatPrice(
+                        result.resistance ?? result.high,
+                        result.type,
+                        result.symbol
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] bg-[#f8f8f8] p-4">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                      Dagens høy / lav
+                    </div>
+                    <div className="mt-3 text-2xl font-bold">
+                      {formatPrice(result.high, result.type, result.symbol)}
+                      <span className="text-black/40"> / </span>
+                      {formatPrice(result.low, result.type, result.symbol)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] bg-[#f8f8f8] p-4">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                      Forrige sluttkurs
+                    </div>
+                    <div className="mt-3 text-2xl font-bold">
+                      {formatPrice(
+                        result.previousClose,
+                        result.type,
+                        result.symbol
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[24px] border border-black/6 p-5">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                      Trend
+                    </div>
+                    <div className="mt-3 text-2xl leading-10">
+                      {result.analysis.trend}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-black/6 p-5">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                      Risiko
+                    </div>
+                    <div className="mt-3 text-2xl leading-10">
+                      {result.analysis.risk}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-black/6 p-5">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                      Konklusjon
+                    </div>
+                    <div className="mt-3 text-2xl leading-10">
+                      {result.analysis.conclusion}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-black/6 p-5">
+                    <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                      Tidshorisont
+                    </div>
+                    <div className="mt-3 text-2xl leading-10">
+                      {result.analysis.timeframe}
+                    </div>
+                  </div>
+                </div>
+
+                {(result.analysis.why || result.analysis.uncertainty) && (
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    {result.analysis.why && (
+                      <div className="rounded-[24px] border border-black/6 p-5">
+                        <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                          Hvorfor denne anbefalingen
+                        </div>
+                        <div className="mt-3 text-xl leading-9">
+                          {result.analysis.why}
+                        </div>
+                      </div>
+                    )}
+
+                    {result.analysis.uncertainty && (
+                      <div className="rounded-[24px] border border-black/6 p-5">
+                        <div className="text-sm font-semibold uppercase tracking-wide text-black/45">
+                          Hva kan endre synet
+                        </div>
+                        <div className="mt-3 text-xl leading-9">
+                          {result.analysis.uncertainty}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -575,15 +536,6 @@ export default function HomePage() {
             <div className="rounded-[28px] bg-white p-5 shadow-sm">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="font-semibold">Siste analyser</div>
-
-                {history.length > 0 && (
-                  <button
-                    onClick={clearHistory}
-                    className="text-xs text-black/45 transition hover:text-black"
-                  >
-                    Tøm
-                  </button>
-                )}
               </div>
 
               {history.length > 0 ? (
@@ -591,17 +543,18 @@ export default function HomePage() {
                   {history.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => handleAnalyze(item.query)}
+                      onClick={() => {
+                        setQuery(item.label);
+                        handleAnalyze(item.label);
+                      }}
                       className="w-full rounded-2xl bg-[#f7f7f7] px-4 py-3 text-left transition hover:bg-[#ececec]"
                     >
-                      {formatHistoryLabel(item.query)}
+                      {item.label}
                     </button>
                   ))}
                 </div>
               ) : (
-                <div className="text-sm text-black/45">
-                  Ingen analyser enda.
-                </div>
+                <div className="text-sm text-black/45">Ingen analyser enda.</div>
               )}
             </div>
 
