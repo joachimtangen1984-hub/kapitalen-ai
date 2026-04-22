@@ -70,7 +70,7 @@ function formatDate(value?: string) {
 }
 
 function formatHistoryLabel(query: string) {
-  return query.length > 28 ? `${query.slice(0, 28)}...` : query;
+  return query.length > 30 ? `${query.slice(0, 30)}...` : query;
 }
 
 function getRecommendationStyle(recommendation?: string) {
@@ -114,15 +114,15 @@ function getChangeColor(value?: number) {
 function MiniChart({ data }: { data: ChartPoint[] }) {
   if (!data || data.length < 2) {
     return (
-      <div className="mt-4 h-40 rounded-2xl bg-[#f7f7f7] flex items-center justify-center text-sm text-black/40">
+      <div className="flex h-[260px] items-center justify-center rounded-[28px] bg-[#f7f7f7] text-base text-black/40 ring-1 ring-black/5">
         Ingen grafdata tilgjengelig
       </div>
     );
   }
 
-  const width = 700;
-  const height = 160;
-  const padding = 16;
+  const width = 1000;
+  const height = 280;
+  const padding = 22;
 
   const values = data.map((d) => d.value);
   const min = Math.min(...values);
@@ -134,34 +134,77 @@ function MiniChart({ data }: { data: ChartPoint[] }) {
       padding + (index * (width - padding * 2)) / Math.max(data.length - 1, 1);
     const y =
       height - padding - ((point.value - min) / range) * (height - padding * 2);
-    return `${x},${y}`;
+    return { x, y };
   });
 
-  const lineColor =
-    data[data.length - 1].value >= data[0].value ? "#16a34a" : "#dc2626";
+  const polylinePoints = points.map((p) => `${p.x},${p.y}`).join(" ");
+  const areaPoints = [
+    `${points[0].x},${height - padding}`,
+    ...points.map((p) => `${p.x},${p.y}`),
+    `${points[points.length - 1].x},${height - padding}`,
+  ].join(" ");
+
+  const isPositive = data[data.length - 1].value >= data[0].value;
+  const lineColor = isPositive ? "#16a34a" : "#dc2626";
+  const fillColor = isPositive ? "rgba(22, 163, 74, 0.10)" : "rgba(220, 38, 38, 0.10)";
 
   return (
-    <div className="mt-4 rounded-2xl bg-[#fcfcfc] p-4 ring-1 ring-black/5">
+    <div className="rounded-[28px] bg-[#fcfcfc] p-5 ring-1 ring-black/5">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="h-40 w-full"
+        className="h-[260px] w-full"
         preserveAspectRatio="none"
       >
+        <line
+          x1={padding}
+          y1={height - padding}
+          x2={width - padding}
+          y2={height - padding}
+          stroke="rgba(0,0,0,0.08)"
+          strokeWidth="1"
+        />
+        <polygon points={areaPoints} fill={fillColor} />
         <polyline
           fill="none"
           stroke={lineColor}
-          strokeWidth="3"
-          points={points.join(" ")}
+          strokeWidth="4"
+          points={polylinePoints}
           strokeLinejoin="round"
           strokeLinecap="round"
         />
       </svg>
 
-      <div className="mt-3 flex justify-between gap-2 overflow-hidden text-xs text-black/45">
+      <div className="mt-4 flex justify-between gap-2 overflow-hidden text-sm text-black/45">
         <span>{data[0]?.label}</span>
         <span>{data[Math.floor(data.length / 2)]?.label}</span>
         <span>{data[data.length - 1]?.label}</span>
       </div>
+    </div>
+  );
+}
+
+function InfoCard({
+  title,
+  children,
+  tone = "default",
+}: {
+  title: string;
+  children: React.ReactNode;
+  tone?: "default" | "warm" | "cool";
+}) {
+  const toneClass =
+    tone === "warm"
+      ? "bg-[#f7f2e8]"
+      : tone === "cool"
+      ? "bg-[#f3f6fb]"
+      : "bg-[#fcfcfc] ring-1 ring-black/5";
+
+  return (
+    <div className={`rounded-[28px] p-5 ${toneClass}`}>
+      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
+        {title}
+      </div>
+      <div className="text-[18px] leading-8 text-black/85">{children}</div>
     </div>
   );
 }
@@ -404,26 +447,29 @@ export default function HomePage() {
             )}
 
             {result && (
-              <div className="rounded-[28px] bg-white p-6 shadow-sm">
-                <div className="flex flex-col gap-5">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div className="rounded-[32px] bg-white p-7 shadow-sm">
+                <div className="flex flex-col gap-7">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div>
                       <h2 className="text-2xl font-semibold">AI-analyse</h2>
 
-                      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-2xl font-semibold">
+                      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[38px] font-semibold leading-tight">
                         <span>
                           {result.name} ({result.symbol})
                         </span>
-                        <span className="text-black/35">•</span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-[28px] font-semibold">
                         <span>
                           {formatNumber(result.price)} {result.currencyLabel}
                         </span>
+                        <span className="text-black/25">•</span>
                         <span className={getChangeColor(result.changePercent)}>
                           {formatPercent(result.changePercent)}
                         </span>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2 text-sm text-black/55">
+                      <div className="mt-4 flex flex-wrap gap-2 text-sm text-black/55">
                         <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
                           Datakilde: {result.source || "finnhub"}
                         </span>
@@ -433,7 +479,7 @@ export default function HomePage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 xl:max-w-[320px] xl:justify-end">
                       <span
                         className={`rounded-full border px-4 py-2 text-sm font-semibold ${getRecommendationStyle(
                           result.recommendation
@@ -458,137 +504,71 @@ export default function HomePage() {
 
                   <MiniChart data={result.chartData || []} />
 
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <div className="rounded-2xl bg-[#f7f7f7] p-4">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-[24px] bg-[#f7f7f7] p-5">
                       <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
                         Støtte
                       </div>
-                      <div className="mt-2 text-xl font-semibold">
+                      <div className="mt-3 text-[28px] font-semibold leading-tight">
                         {formatNumber(result.support)} {result.currencyLabel}
                       </div>
                     </div>
 
-                    <div className="rounded-2xl bg-[#f7f7f7] p-4">
+                    <div className="rounded-[24px] bg-[#f7f7f7] p-5">
                       <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
                         Motstand
                       </div>
-                      <div className="mt-2 text-xl font-semibold">
+                      <div className="mt-3 text-[28px] font-semibold leading-tight">
                         {formatNumber(result.resistance)} {result.currencyLabel}
                       </div>
                     </div>
 
-                    <div className="rounded-2xl bg-[#f7f7f7] p-4">
+                    <div className="rounded-[24px] bg-[#f7f7f7] p-5">
                       <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
                         Dagens høy / lav
                       </div>
-                      <div className="mt-2 text-lg font-semibold">
+                      <div className="mt-3 text-[24px] font-semibold leading-tight">
                         {formatNumber(result.high)} / {formatNumber(result.low)}{" "}
                         {result.currencyLabel}
                       </div>
                     </div>
 
-                    <div className="rounded-2xl bg-[#f7f7f7] p-4">
+                    <div className="rounded-[24px] bg-[#f7f7f7] p-5">
                       <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
                         Forrige sluttkurs
                       </div>
-                      <div className="mt-2 text-xl font-semibold">
+                      <div className="mt-3 text-[28px] font-semibold leading-tight">
                         {formatNumber(result.previousClose)} {result.currencyLabel}
                       </div>
                     </div>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-3xl bg-[#fcfcfc] p-5 ring-1 ring-black/5">
-                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
-                        Trend
-                      </div>
-                      <p className="text-[17px] leading-8 text-black/85">
-                        {result.analysis.trend}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl bg-[#fcfcfc] p-5 ring-1 ring-black/5">
-                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
-                        Risiko
-                      </div>
-                      <p className="text-[17px] leading-8 text-black/85">
-                        {result.analysis.risk}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl bg-[#fcfcfc] p-5 ring-1 ring-black/5">
-                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
-                        Konklusjon
-                      </div>
-                      <p className="text-[17px] leading-8 text-black/85">
-                        {result.analysis.conclusion}
-                      </p>
-                    </div>
-
-                    <div className="rounded-3xl bg-[#fcfcfc] p-5 ring-1 ring-black/5">
-                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
-                        Tidshorisont
-                      </div>
-                      <p className="text-[17px] leading-8 text-black/85">
-                        {result.analysis.timeframe}
-                      </p>
-                    </div>
+                    <InfoCard title="Trend">{result.analysis.trend}</InfoCard>
+                    <InfoCard title="Risiko">{result.analysis.risk}</InfoCard>
+                    <InfoCard title="Konklusjon">
+                      {result.analysis.conclusion}
+                    </InfoCard>
+                    <InfoCard title="Tidshorisont">
+                      {result.analysis.timeframe}
+                    </InfoCard>
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="rounded-3xl bg-[#f7f2e8] p-5">
-                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
-                        Hvorfor kjøp / hold / selg?
-                      </div>
-                      <p className="text-[17px] leading-8 text-black/85">
-                        {result.analysis.why}
-                      </p>
-                    </div>
+                    <InfoCard title="Hvorfor kjøp / hold / selg?" tone="warm">
+                      {result.analysis.why}
+                    </InfoCard>
 
-                    <div className="rounded-3xl bg-[#f3f6fb] p-5">
-                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
-                        Hva må skje for at synet endres?
-                      </div>
-                      <p className="text-[17px] leading-8 text-black/85">
-                        {result.analysis.whatChangesView}
-                      </p>
-                    </div>
+                    <InfoCard
+                      title="Hva må skje for at synet endres?"
+                      tone="cool"
+                    >
+                      {result.analysis.whatChangesView}
+                    </InfoCard>
                   </div>
                 </div>
               </div>
             )}
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="rounded-[28px] bg-white p-6 shadow-sm">
-                <div className="text-xl font-semibold">Equinor (EQNR.OL)</div>
-                <div className="mt-2 text-4xl font-bold">318,40 NOK</div>
-                <div className="font-semibold text-green-600">+1,8%</div>
-                <div className="mt-4 h-28 rounded-xl bg-gray-100" />
-                <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
-                    Sterk kontantstrøm
-                  </span>
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
-                    Lav risiko
-                  </span>
-                </div>
-              </div>
-
-              <div className="rounded-[28px] bg-white p-6 shadow-sm">
-                <div className="text-xl font-semibold">Bitcoin (BTC)</div>
-                <div className="mt-2 text-4xl font-bold">672 340 NOK</div>
-                <div className="font-semibold text-green-600">+2,4%</div>
-                <div className="mt-4 h-28 rounded-xl bg-gray-100" />
-                <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
-                    Sterk trend
-                  </span>
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
-                    Økende adopsjon
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
 
           <aside className="space-y-6">
