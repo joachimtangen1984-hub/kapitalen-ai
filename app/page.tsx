@@ -1,38 +1,41 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-type ApiResponse = {
-  ok?: boolean;
-  error?: string;
-  message?: string;
-  result?: string;
-  symbol?: string;
-  name?: string;
-  type?: "stock" | "crypto";
-  price?: number;
-  previousClose?: number;
-  high?: number;
-  low?: number;
-  change?: number;
-  changePercent?: number;
-  recommendation?: string;
-  score?: number;
-  analysis?: {
-    trend?: string;
-    risk?: string;
-    conclusion?: string;
-    timeframe?: string;
-  };
+type ChartPoint = {
+  label: string;
+  value: number;
 };
 
-type ParsedAnalysis = {
-  trend: string;
-  risiko: string;
-  konklusjon: string;
-  anbefaling: string;
-  score: string;
-  tidsvurdering: string;
+type AnalysisResponse = {
+  symbol: string;
+  name: string;
+  type: "stock" | "crypto";
+  source?: string;
+  currency?: string;
+  currencyLabel?: string;
+  price: number;
+  open: number;
+  high: number;
+  low: number;
+  previousClose: number;
+  change: number;
+  changePercent: number;
+  support: number;
+  resistance: number;
+  bias: string;
+  updatedAt: string;
+  recommendation: "Kjøp" | "Hold" | "Selg";
+  score: number;
+  chartData?: ChartPoint[];
+  analysis: {
+    trend: string;
+    risk: string;
+    conclusion: string;
+    timeframe: string;
+    why: string;
+    whatChangesView: string;
+  };
 };
 
 type HistoryItem = {
@@ -41,48 +44,37 @@ type HistoryItem = {
   createdAt: string;
 };
 
-function extractField(result: string, labels: string[]) {
-  for (const label of labels) {
-    const regex = new RegExp(`${label}\\s*:?\\s*(.*)`, "i");
-    const match = result.match(regex);
-    if (match?.[1]) {
-      return match[1].trim();
-    }
-  }
-  return "";
+function formatNumber(value: number, decimals = 2) {
+  if (!Number.isFinite(value)) return "-";
+  return new Intl.NumberFormat("nb-NO", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value);
 }
 
-function parseAnalysis(result: string): ParsedAnalysis {
-  const trend = extractField(result, ["1\\)\\s*Trend", "Trend"]);
-  const risiko = extractField(result, ["2\\)\\s*Risiko", "Risiko"]);
-  const konklusjon = extractField(result, [
-    "3\\)\\s*Kort konklusjon",
-    "Kort konklusjon",
-    "Konklusjon",
-  ]);
-  const anbefaling = extractField(result, [
-    "4\\)\\s*Anbefaling",
-    "Anbefaling",
-    "Vurdering",
-  ]);
-  const score = extractField(result, ["5\\)\\s*Score", "Score"]);
-  const tidsvurdering = extractField(result, [
-    "6\\)\\s*Tidsvurdering",
-    "Tidsvurdering",
-  ]);
-
-  return {
-    trend,
-    risiko,
-    konklusjon,
-    anbefaling,
-    score,
-    tidsvurdering,
-  };
+function formatPercent(value: number) {
+  if (!Number.isFinite(value)) return "-";
+  const formatted = formatNumber(Math.abs(value), 2);
+  return `${value >= 0 ? "+" : "-"}${formatted}%`;
 }
 
-function getRecommendationStyle(recommendation: string) {
-  const value = recommendation.toLowerCase();
+function formatDate(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return new Intl.DateTimeFormat("nb-NO", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function formatHistoryLabel(query: string) {
+  return query.length > 28 ? `${query.slice(0, 28)}...` : query;
+}
+
+function getRecommendationStyle(recommendation?: string) {
+  const value = (recommendation || "").toLowerCase();
 
   if (value.includes("kjøp")) {
     return "bg-green-100 text-green-700 border-green-200";
@@ -99,49 +91,95 @@ function getRecommendationStyle(recommendation: string) {
   return "bg-gray-100 text-gray-700 border-gray-200";
 }
 
-function formatHistoryLabel(query: string) {
-  return query.length > 28 ? `${query.slice(0, 28)}...` : query;
-}
+function getBiasStyle(bias?: string) {
+  const value = (bias || "").toLowerCase();
 
-function formatPrice(value?: number, symbol?: string) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "—";
+  if (value.includes("positiv")) {
+    return "bg-green-100 text-green-700 border-green-200";
   }
 
-  const isCrypto = symbol?.startsWith("BINANCE:");
-
-  return new Intl.NumberFormat("nb-NO", {
-    minimumFractionDigits: isCrypto ? 0 : 2,
-    maximumFractionDigits: isCrypto ? 0 : 2,
-  }).format(value);
-}
-
-function formatPercent(value?: number) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "—";
+  if (value.includes("negativ")) {
+    return "bg-red-100 text-red-700 border-red-200";
   }
 
-  return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
+  return "bg-gray-100 text-gray-700 border-gray-200";
+}
+
+function getChangeColor(value?: number) {
+  if ((value ?? 0) > 0) return "text-green-600";
+  if ((value ?? 0) < 0) return "text-red-500";
+  return "text-black/55";
+}
+
+function MiniChart({ data }: { data: ChartPoint[] }) {
+  if (!data || data.length < 2) {
+    return (
+      <div className="mt-4 h-40 rounded-2xl bg-[#f7f7f7] flex items-center justify-center text-sm text-black/40">
+        Ingen grafdata tilgjengelig
+      </div>
+    );
+  }
+
+  const width = 700;
+  const height = 160;
+  const padding = 16;
+
+  const values = data.map((d) => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const points = data.map((point, index) => {
+    const x =
+      padding + (index * (width - padding * 2)) / Math.max(data.length - 1, 1);
+    const y =
+      height - padding - ((point.value - min) / range) * (height - padding * 2);
+    return `${x},${y}`;
+  });
+
+  const lineColor =
+    data[data.length - 1].value >= data[0].value ? "#16a34a" : "#dc2626";
+
+  return (
+    <div className="mt-4 rounded-2xl bg-[#fcfcfc] p-4 ring-1 ring-black/5">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-40 w-full"
+        preserveAspectRatio="none"
+      >
+        <polyline
+          fill="none"
+          stroke={lineColor}
+          strokeWidth="3"
+          points={points.join(" ")}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      </svg>
+
+      <div className="mt-3 flex justify-between gap-2 overflow-hidden text-xs text-black/45">
+        <span>{data[0]?.label}</span>
+        <span>{data[Math.floor(data.length / 2)]?.label}</span>
+        <span>{data[data.length - 1]?.label}</span>
+      </div>
+    </div>
+  );
 }
 
 export default function HomePage() {
   const [input, setInput] = useState("");
-  const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<AnalysisResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [limitMessage, setLimitMessage] = useState("");
-  const [remaining, setRemaining] = useState<number | null>(null);
-  const [apiData, setApiData] = useState<ApiResponse | null>(null);
-
-  const parsed = useMemo(() => parseAnalysis(result), [result]);
 
   useEffect(() => {
     const saved = localStorage.getItem("kapitalen-history");
 
     if (saved) {
       try {
-        const parsedHistory = JSON.parse(saved) as HistoryItem[];
-        setHistory(parsedHistory);
+        const parsed = JSON.parse(saved) as HistoryItem[];
+        setHistory(parsed);
       } catch (error) {
         console.error("Kunne ikke lese historikk", error);
       }
@@ -149,7 +187,7 @@ export default function HomePage() {
   }, []);
 
   const saveToHistory = (query: string) => {
-    const newItem: HistoryItem = {
+    const item: HistoryItem = {
       id: crypto.randomUUID(),
       query,
       createdAt: new Date().toISOString(),
@@ -157,24 +195,22 @@ export default function HomePage() {
 
     setHistory((prev) => {
       const filtered = prev.filter(
-        (item) => item.query.toLowerCase() !== query.toLowerCase()
+        (entry) => entry.query.toLowerCase() !== query.toLowerCase()
       );
-      const updated = [newItem, ...filtered].slice(0, 8);
-
+      const updated = [item, ...filtered].slice(0, 8);
       localStorage.setItem("kapitalen-history", JSON.stringify(updated));
       return updated;
     });
   };
 
   const handleAnalyze = async (forcedQuery?: string) => {
-    const query = forcedQuery ?? input;
+    const query = (forcedQuery ?? input).trim();
 
-    if (!query.trim()) return;
+    if (!query) return;
 
     setLoading(true);
-    setResult("");
-    setApiData(null);
-    setLimitMessage("");
+    setResult(null);
+    setErrorMessage("");
 
     if (forcedQuery) {
       setInput(forcedQuery);
@@ -191,40 +227,18 @@ export default function HomePage() {
         }),
       });
 
-      const data: ApiResponse = await res.json();
-
-      if (typeof (data as any).remaining === "number") {
-        setRemaining((data as any).remaining);
-      }
-
-      if (res.status === 429) {
-        setLimitMessage(
-          data.result ||
-            data.message ||
-            "Du har brukt opp gratisgrensen i dag. Oppgrader for ubegrenset tilgang."
-        );
-        return;
-      }
+      const data = await res.json();
 
       if (!res.ok) {
-        const errorMessage =
-          data.message || data.error || "Noe gikk galt. Prøv igjen.";
-        setResult(errorMessage);
+        setErrorMessage(data?.message || data?.error || "Noe gikk galt.");
         return;
       }
 
-      setApiData(data);
-
-      const output =
-        data.result ||
-        data.message ||
-        "Ingen analyse mottatt.";
-
-      setResult(output);
+      setResult(data);
       saveToHistory(query);
     } catch (error) {
       console.error(error);
-      setResult("Noe gikk galt. Prøv igjen.");
+      setErrorMessage("Noe gikk galt. Prøv igjen.");
     } finally {
       setLoading(false);
     }
@@ -238,25 +252,6 @@ export default function HomePage() {
     localStorage.removeItem("kapitalen-history");
     setHistory([]);
   };
-
-  const recommendation =
-    apiData?.recommendation || parsed.anbefaling || "";
-  const score =
-    typeof apiData?.score === "number"
-      ? String(apiData.score)
-      : parsed.score || "";
-
-  const trend =
-    apiData?.analysis?.trend || parsed.trend || "";
-  const risiko =
-    apiData?.analysis?.risk || parsed.risiko || "";
-  const konklusjon =
-    apiData?.analysis?.conclusion || parsed.konklusjon || "";
-  const tidsvurdering =
-    apiData?.analysis?.timeframe || parsed.tidsvurdering || "";
-
-  const hasStructuredResult =
-    trend || risiko || konklusjon || recommendation || score || tidsvurdering;
 
   return (
     <main className="min-h-screen bg-[#f6f4f1] text-[#111]">
@@ -326,14 +321,7 @@ export default function HomePage() {
               </p>
 
               <div className="mt-3 rounded-2xl bg-white/70 px-3 py-2 text-sm text-black/70">
-                {remaining !== null ? (
-                  <>
-                    Gratis igjen i dag:{" "}
-                    <span className="font-semibold">{remaining}</span>
-                  </>
-                ) : (
-                  <>Ubegrensede muligheter med Premium</>
-                )}
+                Ubegrensede muligheter med Premium
               </div>
 
               <button className="mt-4 w-full rounded-2xl bg-[#0f172a] py-3 text-white">
@@ -362,7 +350,7 @@ export default function HomePage() {
                     }
                   }}
                   className="flex-1 bg-transparent px-4 outline-none"
-                  placeholder="Søk etter aksje eller krypto, f.eks. Apple, Equinor, Bitcoin..."
+                  placeholder="Søk etter aksje eller krypto, f.eks. Equinor, Apple, Bitcoin..."
                 />
                 <button
                   onClick={() => handleAnalyze()}
@@ -406,111 +394,167 @@ export default function HomePage() {
               </div>
             </div>
 
-            {limitMessage && (
-              <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-5 shadow-sm">
-                <div className="text-lg font-semibold text-amber-800">
-                  Gratisgrensen er nådd
+            {errorMessage && (
+              <div className="rounded-[28px] border border-red-200 bg-red-50 p-5 shadow-sm">
+                <div className="text-lg font-semibold text-red-800">
+                  AI-analyse
                 </div>
-                <p className="mt-2 text-amber-700">{limitMessage}</p>
+                <p className="mt-2 text-red-700">{errorMessage}</p>
               </div>
             )}
 
             {result && (
               <div className="rounded-[28px] bg-white p-6 shadow-sm">
-                <div className="mb-4 flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-semibold">AI-analyse</h2>
+                <div className="flex flex-col gap-5">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <h2 className="text-2xl font-semibold">AI-analyse</h2>
 
-                    {apiData?.name && apiData?.symbol && (
-                      <div className="mt-2 text-sm text-black/50">
-                        {apiData.name} ({apiData.symbol})
-                        {typeof apiData.price === "number" && (
-                          <>
-                            {" "}•{" "}
-                            {formatPrice(apiData.price, apiData.symbol)}{" "}
-                            {apiData.type === "crypto" ? "USD" : ""}
-                          </>
-                        )}
-                        {typeof apiData.changePercent === "number" && (
-                          <>
-                            {" "}•{" "}
-                            <span
-                              className={
-                                apiData.changePercent >= 0
-                                  ? "text-green-600"
-                                  : "text-red-600"
-                              }
-                            >
-                              {formatPercent(apiData.changePercent)}
-                            </span>
-                          </>
-                        )}
+                      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-2xl font-semibold">
+                        <span>
+                          {result.name} ({result.symbol})
+                        </span>
+                        <span className="text-black/35">•</span>
+                        <span>
+                          {formatNumber(result.price)} {result.currencyLabel}
+                        </span>
+                        <span className={getChangeColor(result.changePercent)}>
+                          {formatPercent(result.changePercent)}
+                        </span>
                       </div>
-                    )}
-                  </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {recommendation && (
+                      <div className="mt-3 flex flex-wrap gap-2 text-sm text-black/55">
+                        <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
+                          Datakilde: {result.source || "finnhub"}
+                        </span>
+                        <span className="rounded-full bg-[#f3f4f6] px-3 py-1">
+                          Sist oppdatert: {formatDate(result.updatedAt)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
                       <span
                         className={`rounded-full border px-4 py-2 text-sm font-semibold ${getRecommendationStyle(
-                          recommendation
+                          result.recommendation
                         )}`}
                       >
-                        {recommendation}
+                        {result.recommendation}
                       </span>
-                    )}
 
-                    {score && (
                       <span className="rounded-full border border-blue-200 bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700">
-                        Score: {score}
+                        Score: {result.score}
                       </span>
-                    )}
+
+                      <span
+                        className={`rounded-full border px-4 py-2 text-sm font-semibold ${getBiasStyle(
+                          result.bias
+                        )}`}
+                      >
+                        Bias: {result.bias}
+                      </span>
+                    </div>
+                  </div>
+
+                  <MiniChart data={result.chartData || []} />
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-2xl bg-[#f7f7f7] p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
+                        Støtte
+                      </div>
+                      <div className="mt-2 text-xl font-semibold">
+                        {formatNumber(result.support)} {result.currencyLabel}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-[#f7f7f7] p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
+                        Motstand
+                      </div>
+                      <div className="mt-2 text-xl font-semibold">
+                        {formatNumber(result.resistance)} {result.currencyLabel}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-[#f7f7f7] p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
+                        Dagens høy / lav
+                      </div>
+                      <div className="mt-2 text-lg font-semibold">
+                        {formatNumber(result.high)} / {formatNumber(result.low)}{" "}
+                        {result.currencyLabel}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-[#f7f7f7] p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-black/45">
+                        Forrige sluttkurs
+                      </div>
+                      <div className="mt-2 text-xl font-semibold">
+                        {formatNumber(result.previousClose)} {result.currencyLabel}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-3xl bg-[#fcfcfc] p-5 ring-1 ring-black/5">
+                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
+                        Trend
+                      </div>
+                      <p className="text-[17px] leading-8 text-black/85">
+                        {result.analysis.trend}
+                      </p>
+                    </div>
+
+                    <div className="rounded-3xl bg-[#fcfcfc] p-5 ring-1 ring-black/5">
+                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
+                        Risiko
+                      </div>
+                      <p className="text-[17px] leading-8 text-black/85">
+                        {result.analysis.risk}
+                      </p>
+                    </div>
+
+                    <div className="rounded-3xl bg-[#fcfcfc] p-5 ring-1 ring-black/5">
+                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
+                        Konklusjon
+                      </div>
+                      <p className="text-[17px] leading-8 text-black/85">
+                        {result.analysis.conclusion}
+                      </p>
+                    </div>
+
+                    <div className="rounded-3xl bg-[#fcfcfc] p-5 ring-1 ring-black/5">
+                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
+                        Tidshorisont
+                      </div>
+                      <p className="text-[17px] leading-8 text-black/85">
+                        {result.analysis.timeframe}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-3xl bg-[#f7f2e8] p-5">
+                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
+                        Hvorfor kjøp / hold / selg?
+                      </div>
+                      <p className="text-[17px] leading-8 text-black/85">
+                        {result.analysis.why}
+                      </p>
+                    </div>
+
+                    <div className="rounded-3xl bg-[#f3f6fb] p-5">
+                      <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-black/45">
+                        Hva må skje for at synet endres?
+                      </div>
+                      <p className="text-[17px] leading-8 text-black/85">
+                        {result.analysis.whatChangesView}
+                      </p>
+                    </div>
                   </div>
                 </div>
-
-                {hasStructuredResult ? (
-                  <div className="space-y-4 text-[17px] leading-8 text-black/85">
-                    {trend && (
-                      <div>
-                        <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
-                          Trend
-                        </div>
-                        <div>{trend}</div>
-                      </div>
-                    )}
-
-                    {risiko && (
-                      <div>
-                        <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
-                          Risiko
-                        </div>
-                        <div>{risiko}</div>
-                      </div>
-                    )}
-
-                    {konklusjon && (
-                      <div>
-                        <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
-                          Kort konklusjon
-                        </div>
-                        <div>{konklusjon}</div>
-                      </div>
-                    )}
-
-                    {tidsvurdering && (
-                      <div>
-                        <div className="mb-1 text-sm font-semibold uppercase tracking-wide text-black/45">
-                          Tidsvurdering
-                        </div>
-                        <div>{tidsvurdering}</div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="whitespace-pre-wrap text-[18px] leading-9 text-black/85">
-                    {result}
-                  </div>
-                )}
               </div>
             )}
 
